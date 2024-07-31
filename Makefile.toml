@@ -1,0 +1,3 @@
+[tasks.serve]
+command = "trunk"
+args = ["serve"]
