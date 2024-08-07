@@ -4,9 +4,14 @@
 
 @layer components {
   .game-grid {
-    display: grid;
+    @apply grid gap-2;
+    grid-template-columns: 200px auto;
+    grid-template-rows: repeat(5, 1fr);
+  }
+
+  .game-table-grid {
+    @apply grid gap-0.5;
     grid-template-columns: 2fr repeat(9, 1fr) 2fr;
     grid-template-rows: 2fr repeat(9, 1fr) 2fr;
-    gap: 2px;
   }
 }

@@ -10,6 +10,10 @@ pub const CELLS_COUNT: usize = 40;
 pub struct GameState {
     cells: [Cell; CELLS_COUNT],
     players: RwSignal<HashMap<PlayerId, Player>>,
+    pub self_player: Player,
+    current_player: RwSignal<Player>,
+    current_step: RwSignal<usize>,
+    current_round: RwSignal<usize>,
 }
 
 impl GameState {
@@ -19,6 +23,10 @@ impl GameState {
         players.insert(1, Player::new(1, "Madeline", "#bfa0f1"));
 
         Self {
+            self_player: players[&0],
+            current_player: RwSignal::new(players[&0]),
+            current_step: RwSignal::new(0),
+            current_round: RwSignal::new(0),
             cells: CELLS.map(Cell::new),
             players: RwSignal::new(players),
         }
@@ -26,6 +34,10 @@ impl GameState {
 
     pub fn use_context() -> Self {
         expect_context::<Self>()
+    }
+
+    pub fn current_player(&self) -> Player {
+        self.current_player.get()
     }
 
     pub fn get_cell(&self, index: usize) -> Cell {
@@ -111,9 +123,9 @@ pub enum PlayerState {
 
 #[derive(Debug, Clone, Copy)]
 pub struct Player {
-    id: PlayerId,
-    name: StoredValue<String>,
-    color: StoredValue<String>,
+    pub id: PlayerId,
+    pub name: StoredValue<String>,
+    pub color: StoredValue<String>,
     balance: RwSignal<i64>,
     position: RwSignal<usize>,
     state: RwSignal<PlayerState>,
@@ -143,10 +155,6 @@ impl Player {
 
     pub fn position(&self) -> usize {
         (self.position)()
-    }
-
-    pub fn color(&self) -> String {
-        self.color.get_value()
     }
 }
 

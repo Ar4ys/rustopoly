@@ -5,7 +5,7 @@ use tailwind_merge::tw;
 use web_sys::HtmlDivElement;
 
 use crate::{
-    game_state::{Cell, CellType, GameState, Player, CELLS_COUNT},
+    game_state::{CellType, GameState, Player, CELLS_COUNT},
     hooks::window_scroll::use_window_scroll,
 };
 
@@ -39,17 +39,25 @@ pub fn GamePage() -> impl IntoView {
     provide_context(game_state);
 
     view! {
-        <div class="game-grid min-h-full aspect-square">
-            <Rows cells_refs/>
-            <div class="col-[2/11] row-[2/11] bg-cyan-700">"Chat"</div>
+        <div class="p-3 min-h-full game-grid grow">
+            {move || {
+                game_state
+                    .get_players()
+                    .into_values()
+                    .map(|player| view! { <PlayerCard player class="col-[1]".to_owned() /> })
+                    .collect_view()
+            }} <div class="min-h-full game-table-grid col-[2] row-[1/6]">
+                <Rows cells_refs />
+                <div class="bg-cyan-700 col-[2/11] row-[2/11]">"Chat"</div>
+            </div>
+            {move || {
+                game_state
+                    .get_players()
+                    .into_values()
+                    .map(|player| view! { <PlayerToken cells_refs player /> })
+                    .collect_view()
+            }}
         </div>
-        {move || {
-            game_state
-                .get_players()
-                .into_values()
-                .map(|player| view! { <PlayerToken cells_refs player/> })
-                .collect_view()
-        }}
     }
 }
 
@@ -124,6 +132,25 @@ fn Cell(index: usize, node_ref: NodeRef<Div>) -> impl IntoView {
 }
 
 #[component]
+pub fn PlayerCard(player: Player, #[prop(into, optional)] class: Signal<String>) -> impl IntoView {
+    let game_state = GameState::use_context();
+
+    let background_color = move || {
+        (game_state.current_player() == player)
+            .then(|| player.color.get_value())
+            .unwrap_or_default()
+    };
+
+    view! {
+        <div style:background-color=background_color class=move || tw!("bg-gray-500", class())>
+            <div>"Id: " {player.id}</div>
+            <div>"Name: " {player.name.get_value()}</div>
+            <div style:color=player.color.get_value()>"Color"</div>
+        </div>
+    }
+}
+
+#[component]
 fn PlayerToken(cells_refs: CellsRefs, player: Player) -> impl IntoView {
     let width = 12f64;
     let height = 12f64;
@@ -160,14 +187,13 @@ fn PlayerToken(cells_refs: CellsRefs, player: Player) -> impl IntoView {
             style:transform=transform
             style:width=width.to_string()
             style:height=height.to_string()
-            style:background-color=player.color()
+            style:background-color=player.color.get_value()
             class=move || {
                 tw!(
                     "absolute left-0 top-0 w-3 h-3 border-gray-600 border transition-transform",
                     transform().is_empty() => "hidden"
                 )
             }
-        >
-        </div>
+        />
     }
 }
