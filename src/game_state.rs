@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use leptos::prelude::*;
 
 use crate::game_data::CELLS;
@@ -6,20 +8,129 @@ pub const CELLS_COUNT: usize = 40;
 
 #[derive(Debug, Clone, Copy)]
 pub struct GameState {
-    position: RwSignal<usize>,
-    cells: [RwSignal<Cell>; CELLS_COUNT],
+    cells: [Cell; CELLS_COUNT],
+    players: RwSignal<HashMap<PlayerId, Player>>,
 }
 
 impl GameState {
     pub fn new() -> Self {
+        let mut players = HashMap::new();
+        players.insert(0, Player::new(0, "Ar4ys", "#f87171"));
+        players.insert(1, Player::new(1, "Madeline", "#bfa0f1"));
+
         Self {
-            position: RwSignal::new(0),
-            cells: CELLS.map(RwSignal::new),
+            cells: CELLS.map(Cell::new),
+            players: RwSignal::new(players),
         }
     }
 
     pub fn use_context() -> Self {
         expect_context::<Self>()
+    }
+
+    pub fn get_cell(&self, index: usize) -> Cell {
+        self.cells[index]
+    }
+
+    pub fn get_players(&self) -> HashMap<PlayerId, Player> {
+        self.players.get()
+    }
+
+    pub fn get_player_by_id(&self, id: PlayerId) -> Player {
+        self.players.with_untracked(|players| {
+            *players
+                .get(&id)
+                .unwrap_or_else(|| panic!("Player with id \"{id}\" should to exists"))
+        })
+    }
+
+    pub fn get_players_by_cell(&self, index: usize) -> Vec<Player> {
+        self.players.with(|players| {
+            players
+                .iter()
+                .filter_map(|(_, player)| (player.position() == index).then_some(*player))
+                .collect()
+        })
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct Cell {
+    pub ty: CellType,
+    state: CellState,
+}
+
+impl Cell {
+    pub fn new(ty: CellType) -> Self {
+        Self {
+            ty,
+            state: CellState::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct CellState {
+    owner: RwSignal<Option<Player>>,
+    level: RwSignal<u8>,
+}
+
+impl CellState {
+    pub fn new() -> Self {
+        Self {
+            owner: RwSignal::new(None),
+            level: RwSignal::new(0),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum CellType {
+    Start,
+    Jail,
+    FreeParking,
+    GoToJail,
+    Property,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum ConnectionStatus {
+    Connected,
+    Disconnected,
+}
+
+type PlayerId = u64;
+
+#[derive(Debug, Clone, Copy)]
+pub enum PlayerState {
+    Won,
+    Lost,
+    Playing,
+    Left,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct Player {
+    id: PlayerId,
+    name: StoredValue<String>,
+    color: StoredValue<String>,
+    balance: RwSignal<i64>,
+    position: RwSignal<usize>,
+    state: RwSignal<PlayerState>,
+    connection_status: RwSignal<ConnectionStatus>,
+}
+
+impl Player {
+    pub fn new(id: PlayerId, name: &str, color: &str) -> Self {
+        Self {
+            id,
+            name: StoredValue::new(name.to_owned()),
+            color: StoredValue::new(color.to_owned()),
+            balance: RwSignal::new(0),
+            position: RwSignal::new(0),
+            state: RwSignal::new(PlayerState::Playing),
+            connection_status: RwSignal::new(ConnectionStatus::Connected),
+        }
     }
 
     pub fn set_position(&self, index: usize) {
@@ -34,16 +145,15 @@ impl GameState {
         (self.position)()
     }
 
-    pub fn get_cell(&self, index: usize) -> Cell {
-        self.cells[index].get()
+    pub fn color(&self) -> String {
+        self.color.get_value()
     }
 }
 
-#[derive(Debug, Clone)]
-pub enum Cell {
-    Start,
-    Jail,
-    FreeParking,
-    GoToJail,
-    Property,
+impl PartialEq for Player {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
 }
+
+impl Eq for Player {}

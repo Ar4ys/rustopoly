@@ -5,7 +5,7 @@ use tailwind_merge::tw;
 use web_sys::HtmlDivElement;
 
 use crate::{
-    game_state::{Cell, GameState, CELLS_COUNT},
+    game_state::{Cell, CellType, GameState, Player, CELLS_COUNT},
     hooks::window_scroll::use_window_scroll,
 };
 
@@ -43,7 +43,13 @@ pub fn GamePage() -> impl IntoView {
             <Rows cells_refs/>
             <div class="col-[2/11] row-[2/11] bg-cyan-700">"Chat"</div>
         </div>
-        <PlayerCursor cells_refs/>
+        {move || {
+            game_state
+                .get_players()
+                .into_values()
+                .map(|player| view! { <PlayerToken cells_refs player/> })
+                .collect_view()
+        }}
     }
 }
 
@@ -91,26 +97,26 @@ fn Rows(cells_refs: CellsRefs) -> impl IntoView {
 fn Cell(index: usize, node_ref: NodeRef<Div>) -> impl IntoView {
     let game_state = GameState::use_context();
     let current_cell = move || game_state.get_cell(index);
-    let bg_class = move || match current_cell() {
-        Cell::Start => "bg-green-500",
-        Cell::Jail => "bg-yellow-500",
-        Cell::FreeParking => "bg-red-500",
-        Cell::GoToJail => "bg-purple-500",
-        Cell::Property => "bg-gray-500",
+    let bg_class = move || match current_cell().ty {
+        CellType::Start => "bg-green-500",
+        CellType::Jail => "bg-yellow-500",
+        CellType::FreeParking => "bg-red-500",
+        CellType::GoToJail => "bg-purple-500",
+        CellType::Property => "bg-gray-500",
     };
 
     view! {
         <div
             node_ref=node_ref
             class=move || tw!("p-1 cursor-pointer", bg_class())
-            on:click=move |_| game_state.set_position(index)
+            on:click=move |_| game_state.get_player_by_id(0).set_position(index)
         >
-            {match current_cell() {
-                Cell::Start => "Start",
-                Cell::Jail => "Jail",
-                Cell::FreeParking => "FreeParking",
-                Cell::GoToJail => "GoToJail",
-                Cell::Property => "Property",
+            {match current_cell().ty {
+                CellType::Start => "Start",
+                CellType::Jail => "Jail",
+                CellType::FreeParking => "FreeParking",
+                CellType::GoToJail => "GoToJail",
+                CellType::Property => "Property",
             }}
 
         </div>
@@ -118,20 +124,33 @@ fn Cell(index: usize, node_ref: NodeRef<Div>) -> impl IntoView {
 }
 
 #[component]
-fn PlayerCursor(cells_refs: CellsRefs) -> impl IntoView {
+fn PlayerToken(cells_refs: CellsRefs, player: Player) -> impl IntoView {
     let width = 12f64;
     let height = 12f64;
+    let gap = 6f64;
 
     let game_state = GameState::use_context();
     let (scroll_x, scroll_y) = use_window_scroll();
     let transform = RwSignal::new(String::new());
 
     Effect::new(move |_| {
-        // TODO: Calculate position if there is more than one player on a cell
-        let current_cell = cells_refs.get(game_state.position());
+        let players = game_state.get_players_by_cell(player.position());
+        let current_player_index = players
+            .iter()
+            .position(|p| p == &player)
+            .expect("game_state.get_players_by_cell() should contain current player also");
+        let current_cell = cells_refs.get(player.position());
         let cell_rect = current_cell.get_bounding_client_rect();
-        let x = scroll_x() + cell_rect.x() + cell_rect.width() / 2f64 - width / 2f64;
-        let y = scroll_y() + cell_rect.y() + cell_rect.height() / 2f64 - height / 2f64;
+
+        let cell_x_center = scroll_x() + cell_rect.x() + cell_rect.width() / 2f64;
+        let cell_y_center = scroll_y() + cell_rect.y() + cell_rect.height() / 2f64;
+
+        let token_box_height = height * players.len() as f64 + gap * (players.len() - 1) as f64;
+
+        let x = cell_x_center - width / 2f64;
+        let y = cell_y_center - token_box_height / 2f64
+            + height * current_player_index as f64
+            + gap * current_player_index as f64;
 
         transform.set(format!("translate({x}px, {y}px)"));
     });
@@ -141,9 +160,10 @@ fn PlayerCursor(cells_refs: CellsRefs) -> impl IntoView {
             style:transform=transform
             style:width=width.to_string()
             style:height=height.to_string()
+            style:background-color=player.color()
             class=move || {
                 tw!(
-                    "absolute left-0 top-0 w-3 h-3 bg-red-400 border-gray-600 border transition-transform",
+                    "absolute left-0 top-0 w-3 h-3 border-gray-600 border transition-transform",
                     transform().is_empty() => "hidden"
                 )
             }
