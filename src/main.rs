@@ -1,29 +1,37 @@
 use leptos::prelude::*;
-use std::panic;
-use tailwind_merge::tw;
+use leptos_router::components::Router;
 use tracing_error::ErrorLayer;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use tracing_wasm::WASMLayer;
 
-mod fmt_panic;
+use crate::app::App;
 
-#[tracing::instrument]
-fn oops(arg: u32, arg2: u32) {
-    panic!("Oh well ._.");
-}
+mod app;
+mod components;
+mod fmt_panic;
+mod game_data;
+mod game_state;
+mod hooks;
+mod isolog;
+mod pages;
+mod utils;
 
 fn main() {
     setup_error_handlers();
-    oops(12, 21);
 
-    mount_to_body(|| view! { <p class=tw!("text-red-600")>"Hello, world!"</p> })
+    mount_to_body(|| {
+        view! {
+            <Router>
+                <App/>
+            </Router>
+        }
+    });
 }
 
 fn setup_error_handlers() {
+    std::panic::set_hook(Box::new(fmt_panic::panic_hook));
     tracing_subscriber::registry()
         .with(WASMLayer::default())
         .with(ErrorLayer::default())
         .init();
-
-    panic::set_hook(Box::new(fmt_panic::panic_hook));
 }

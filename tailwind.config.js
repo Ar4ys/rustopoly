@@ -1,3 +1,3 @@
 module.exports = {
-  content: ['src/**/*.rs'],
+  content: ['src/**/*.rs', 'index.html'],
 };

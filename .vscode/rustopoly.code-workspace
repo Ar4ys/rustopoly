@@ -5,6 +5,11 @@
     }
   ],
   "settings": {
-    "cSpell.words": ["Rustopoly"]
+    "cSpell.words": ["Rustopoly"],
+    "rust-analyzer.rustfmt.overrideCommand": [
+      "/home/ar4ys/.cargo/bin/leptosfmt",
+      "--stdin",
+      "--rustfmt"
+    ]
   }
 }
