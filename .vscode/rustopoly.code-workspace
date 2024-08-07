@@ -8,6 +8,7 @@
     "cSpell.words": ["Rustopoly"],
     "rust-analyzer.rustfmt.overrideCommand": [
       "/home/ar4ys/.cargo/bin/leptosfmt",
+      "--experimental-tailwind",
       "--stdin",
       "--rustfmt"
     ]
