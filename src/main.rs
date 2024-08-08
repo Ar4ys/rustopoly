@@ -4,19 +4,14 @@ use tracing_error::ErrorLayer;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use tracing_wasm::WASMLayer;
 
-use crate::app::App;
+use self::{app::App, utils::fmt_panic};
 
 mod app;
-mod callable_option;
 mod components;
-mod fmt_panic;
 mod game_data;
 mod game_state;
 mod hooks;
-mod isolog;
-mod oneshot_event_emitter;
 mod pages;
-mod rand;
 mod utils;
 
 fn main() {

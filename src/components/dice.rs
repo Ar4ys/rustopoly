@@ -1,7 +1,10 @@
+// Adapted from https://codepen.io/firatksee/pen/NWBmZPN
+// TODO: Add proper reference to original
+
 use leptos::prelude::*;
 use tailwind_merge::tw;
 
-use crate::callable_option::CallableOption;
+use crate::utils::callable_option::CallableOption;
 
 type Rotation<'a> = (&'a str, &'a str);
 

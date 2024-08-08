@@ -2,7 +2,10 @@ use std::collections::HashMap;
 
 use leptos::prelude::*;
 
-use crate::{game_data::CELLS, oneshot_event_emitter::OneShotEventEmitter, rand};
+use crate::{
+    game_data::CELLS,
+    utils::{oneshot_event_emitter::OneShotEventEmitter, rand},
+};
 
 pub const CELLS_COUNT: usize = 40;
 
