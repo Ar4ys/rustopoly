@@ -7,13 +7,16 @@ use tracing_wasm::WASMLayer;
 use crate::app::App;
 
 mod app;
+mod callable_option;
 mod components;
 mod fmt_panic;
 mod game_data;
 mod game_state;
 mod hooks;
 mod isolog;
+mod oneshot_event_emitter;
 mod pages;
+mod rand;
 mod utils;
 
 fn main() {
@@ -22,7 +25,7 @@ fn main() {
     mount_to_body(|| {
         view! {
             <Router>
-                <App/>
+                <App />
             </Router>
         }
     });

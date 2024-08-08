@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use leptos::prelude::*;
 
-use crate::game_data::CELLS;
+use crate::{game_data::CELLS, oneshot_event_emitter::OneShotEventEmitter, rand};
 
 pub const CELLS_COUNT: usize = 40;
 
@@ -14,6 +14,9 @@ pub struct GameState {
     current_player: RwSignal<Player>,
     current_step: RwSignal<usize>,
     current_round: RwSignal<usize>,
+    render_dice: RwSignal<Option<(usize, usize)>>,
+    player_token_transition_end: OneShotEventEmitter,
+    dice_transition_end: OneShotEventEmitter,
 }
 
 impl GameState {
@@ -29,6 +32,9 @@ impl GameState {
             current_round: RwSignal::new(0),
             cells: CELLS.map(Cell::new),
             players: RwSignal::new(players),
+            render_dice: RwSignal::new(None),
+            player_token_transition_end: OneShotEventEmitter::new(),
+            dice_transition_end: OneShotEventEmitter::new(),
         }
     }
 
@@ -38,6 +44,10 @@ impl GameState {
 
     pub fn current_player(&self) -> Player {
         self.current_player.get()
+    }
+
+    pub fn render_dice(&self) -> Option<(usize, usize)> {
+        self.render_dice.get()
     }
 
     pub fn get_cell(&self, index: usize) -> Cell {
@@ -59,10 +69,59 @@ impl GameState {
     pub fn get_players_by_cell(&self, index: usize) -> Vec<Player> {
         self.players.with(|players| {
             players
-                .iter()
-                .filter_map(|(_, player)| (player.position() == index).then_some(*player))
+                .values()
+                .filter_map(|player| (player.position() == index).then_some(*player))
                 .collect()
         })
+    }
+
+    pub async fn roll_dice(&self) {
+        let dice1 = rand::get_usize(1..=6);
+        let dice2 = rand::get_usize(1..=6);
+        self.render_dice.set(Some((dice1, dice2)));
+        self.dice_transition_end.listen_async().await;
+        untrack(|| {
+            self.current_player
+                .with_untracked(|player| player.append_position(dice1 + dice2))
+        });
+
+        self.player_token_transition_end.listen_async().await;
+        self.render_dice.set(None);
+        untrack(|| self.next_player());
+    }
+
+    pub fn next_player(&self) {
+        let players_left: Vec<_> = self.players.with(|players| {
+            players
+                .values()
+                // Skip all players before current one
+                .skip_while(|player| **player != self.current_player())
+                // Skip current player
+                .skip(1)
+                .copied()
+                .collect()
+        });
+
+        let next_player = if players_left.is_empty() {
+            self.players.with(|players| {
+                players
+                    .values()
+                    .next()
+                    .copied()
+                    .expect("There should be players!")
+            })
+        } else {
+            players_left[0]
+        };
+
+        self.current_player.set(next_player);
+    }
+
+    pub fn player_token_transition_end(&self) {
+        self.player_token_transition_end.trigger();
+    }
+    pub fn dice_transition_end(&self) {
+        self.dice_transition_end.trigger();
     }
 }
 
@@ -151,6 +210,10 @@ impl Player {
             "There is only {CELLS_COUNT} cells, dummy. Provided index: {index}"
         );
         self.position.set(index)
+    }
+
+    pub fn append_position(&self, index: usize) {
+        self.position.set((self.position() + index) % CELLS_COUNT)
     }
 
     pub fn position(&self) -> usize {

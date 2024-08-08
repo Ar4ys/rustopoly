@@ -1,4 +1,4 @@
-use std::convert::identity;
+use std::{convert::identity, time::Duration};
 
 use leptos::{html::Div, prelude::*};
 use tailwind_merge::tw;
@@ -51,11 +51,27 @@ pub fn GamePage() -> impl IntoView {
             <div class="grid relative gap-0.5 min-h-full grid-columns-[2fr_repeat(9,21fr)_2fr] grid-rows-[2fr_repeat(9,1fr)_2fr] col-[2] row-[1/6]">
                 <Rows cells_refs />
                 <Chat class="col-[2/11] row-[2/11]".to_owned() />
-                <Dice
-                    side=3
-                    class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2".to_owned()
-                    animated=true
-                />
+                {move || {
+                    game_state
+                        .render_dice()
+                        .map(|(a, b)| {
+                            view! {
+                                <div class="flex absolute top-1/2 left-1/2 gap-4 -translate-x-1/2 -translate-y-1/2">
+                                    <Dice
+                                        side=a
+                                        animated=true
+                                        on_animation_end=Callback::new(move |_| {
+                                            set_timeout(
+                                                move || game_state.dice_transition_end(),
+                                                Duration::from_millis(200),
+                                            );
+                                        })
+                                    />
+                                    <Dice side=b animated=true />
+                                </div>
+                            }
+                        })
+                }}
             </div>
             {move || {
                 game_state
@@ -121,11 +137,7 @@ fn Cell(index: usize, node_ref: NodeRef<Div>) -> impl IntoView {
     };
 
     view! {
-        <div
-            node_ref=node_ref
-            class=move || tw!("p-1 cursor-pointer", bg_class())
-            on:click=move |_| game_state.get_player_by_id(0).set_position(index)
-        >
+        <div node_ref=node_ref class=move || tw!("p-1", bg_class())>
             {match current_cell().ty {
                 CellType::Start => "Start",
                 CellType::Jail => "Jail",
@@ -191,6 +203,7 @@ fn PlayerToken(cells_refs: CellsRefs, player: Player) -> impl IntoView {
 
     view! {
         <div
+            on:transitionend=move |_| game_state.player_token_transition_end()
             style:transform=transform
             style:width=width.to_string()
             style:height=height.to_string()
@@ -202,5 +215,29 @@ fn PlayerToken(cells_refs: CellsRefs, player: Player) -> impl IntoView {
                 )
             }
         />
+    }
+}
+
+#[component]
+pub fn Chat(#[prop(into, optional)] class: Signal<String>) -> impl IntoView {
+    let game_state = GameState::use_context();
+    let roll_dice_action = Action::new_local(move |()| async move { game_state.roll_dice().await });
+    let roll_dice_pending = roll_dice_action.pending();
+
+    let roll_dice = move |_| {
+        if roll_dice_pending() {
+            return;
+        };
+
+        roll_dice_action.dispatch(());
+    };
+
+    view! {
+        <div
+            class=move || tw!("bg-cyan-700", !roll_dice_pending() => "cursor-pointer", class())
+            on:click=roll_dice
+        >
+            "Chat"
+        </div>
     }
 }

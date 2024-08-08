@@ -1,6 +1,8 @@
 use leptos::prelude::*;
 use tailwind_merge::tw;
 
+use crate::callable_option::CallableOption;
+
 type Rotation<'a> = (&'a str, &'a str);
 
 const SIDE: [(Rotation, Rotation); 6] = [
@@ -24,6 +26,9 @@ pub fn Dice(
     #[prop(into, optional)] class: String,
     side: usize,
     #[prop(optional)] animated: bool,
+    // I cannot easily pass closure into this!!
+    // TODO: Fix and pr into leptos
+    #[prop(into, optional)] on_animation_end: Option<Callback<()>>,
 ) -> impl IntoView {
     assert!(
         (1..=6).contains(&side),
@@ -38,12 +43,15 @@ pub fn Dice(
             style=SIDE[side - 1].1
         >
 
-            {(1..=6).map(|face| dice_face(face, animated)).collect_view()}
+            // We don't want to trigger callback on animation end of all 6 faces - only one
+            {(1..=6)
+                .map(|face| dice_face(face, animated, on_animation_end.filter(|_| face == 1)))
+                .collect_view()}
         </div>
     }
 }
 
-fn dice_face(face: usize, animated: bool) -> impl IntoView {
+fn dice_face(face: usize, animated: bool, on_animation_end: Option<Callback<()>>) -> impl IntoView {
     view! {
         <div
             style:animation-name=format!("dice-surface-{face}")
@@ -52,6 +60,9 @@ fn dice_face(face: usize, animated: bool) -> impl IntoView {
                 "aspect-square origin-[50%_50%_-5rem] border-[0.2rem] text-[6rem] [backface-visibility:hidden]",
                 if animated { "animate-[0.7s_ease-in-out_forwards]" } else { "animate-[0s_forwards]" }
             )
+            on:animationend=move |_| {
+                on_animation_end.call(());
+            }
         >
             <div
                 class="grid gap-[0.6rem]"
