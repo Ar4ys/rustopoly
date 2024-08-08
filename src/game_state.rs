@@ -80,17 +80,23 @@ impl GameState {
         let dice2 = rand::get_usize(1..=6);
         self.render_dice.set(Some((dice1, dice2)));
         self.dice_transition_end.listen_async().await;
-        untrack(|| {
-            self.current_player
-                .with_untracked(|player| player.append_position(dice1 + dice2))
-        });
+        self.current_player
+            .with_untracked(|player| player.append_position(dice1 + dice2));
 
         self.player_token_transition_end.listen_async().await;
         self.render_dice.set(None);
-        untrack(|| self.next_player());
+        self.finish_step();
     }
 
-    pub fn next_player(&self) {
+    pub fn finish_step(&self) {
+        let is_round_ended = untrack(|| self.next_player());
+        self.current_step.update(|step| *step += 1);
+        if is_round_ended {
+            self.current_round.update(|round| *round += 1);
+        }
+    }
+
+    pub fn next_player(&self) -> bool {
         let players_left: Vec<_> = self.players.with(|players| {
             players
                 .values()
@@ -102,19 +108,24 @@ impl GameState {
                 .collect()
         });
 
-        let next_player = if players_left.is_empty() {
-            self.players.with(|players| {
-                players
-                    .values()
-                    .next()
-                    .copied()
-                    .expect("There should be players!")
-            })
+        let (next_player, is_round_ended) = if players_left.is_empty() {
+            (
+                self.players.with(|players| {
+                    players
+                        .values()
+                        .next()
+                        .copied()
+                        .expect("There should be players!")
+                }),
+                true,
+            )
         } else {
-            players_left[0]
+            (players_left[0], false)
         };
 
         self.current_player.set(next_player);
+
+        is_round_ended
     }
 
     pub fn player_token_transition_end(&self) {
@@ -213,7 +224,8 @@ impl Player {
     }
 
     pub fn append_position(&self, index: usize) {
-        self.position.set((self.position() + index) % CELLS_COUNT)
+        self.position
+            .update(|position| *position = (*position + index) % CELLS_COUNT)
     }
 
     pub fn position(&self) -> usize {
