@@ -5,6 +5,7 @@ use tailwind_merge::tw;
 use web_sys::HtmlDivElement;
 
 use crate::{
+    components::dice::Dice,
     game_state::{CellType, GameState, Player, CELLS_COUNT},
     hooks::window_scroll::use_window_scroll,
 };
@@ -39,16 +40,22 @@ pub fn GamePage() -> impl IntoView {
     provide_context(game_state);
 
     view! {
-        <div class="p-3 min-h-full game-grid grow">
+        <div class="grid gap-2 p-3 min-h-full grid-cols-[200px_auto] grid-rows-[repeat(5,1fr)] grow">
             {move || {
                 game_state
                     .get_players()
                     .into_values()
                     .map(|player| view! { <PlayerCard player class="col-[1]".to_owned() /> })
                     .collect_view()
-            }} <div class="min-h-full game-table-grid col-[2] row-[1/6]">
+            }}
+            <div class="grid relative gap-0.5 min-h-full grid-columns-[2fr_repeat(9,21fr)_2fr] grid-rows-[2fr_repeat(9,1fr)_2fr] col-[2] row-[1/6]">
                 <Rows cells_refs />
-                <div class="bg-cyan-700 col-[2/11] row-[2/11]">"Chat"</div>
+                <Chat class="col-[2/11] row-[2/11]".to_owned() />
+                <Dice
+                    side=3
+                    class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2".to_owned()
+                    animated=true
+                />
             </div>
             {move || {
                 game_state

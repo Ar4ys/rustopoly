@@ -3,15 +3,75 @@
 @tailwind utilities;
 
 @layer components {
-  .game-grid {
-    @apply grid gap-2;
-    grid-template-columns: 200px auto;
-    grid-template-rows: repeat(5, 1fr);
+  @keyframes dice-surface-1 {
+    from {
+      transform: rotateY(0deg) rotateX(0deg);
+    }
+    50% {
+      transform: rotateY(359deg) rotateX(359deg);
+    }
+    to {
+      transform: rotateY(var(--rotateY-deg)) rotateX(var(--rotateX-deg));
+    }
   }
 
-  .game-table-grid {
-    @apply grid gap-0.5;
-    grid-template-columns: 2fr repeat(9, 1fr) 2fr;
-    grid-template-rows: 2fr repeat(9, 1fr) 2fr;
+  @keyframes dice-surface-2 {
+    from {
+      transform: rotateY(calc(0deg + 90deg)) rotateZ(0deg);
+    }
+    50% {
+      transform: rotateY(calc(359deg + 90deg)) rotateZ(359deg);
+    }
+    to {
+      transform: rotateY(calc(var(--rotateY-deg) + 90deg)) rotateZ(var(--rotateX-deg));
+    }
+  }
+
+  @keyframes dice-surface-3 {
+    from {
+      transform: rotateY(0deg) rotateX(calc(0deg - 90deg));
+    }
+    50% {
+      transform: rotateY(359deg) rotateX(calc(359deg - 90deg));
+    }
+    to {
+      transform: rotateY(var(--rotateY-deg)) rotateX(calc(var(--rotateX-deg) - 90deg));
+    }
+  }
+
+  @keyframes dice-surface-4 {
+    from {
+      transform: rotateY(0deg) rotateX(calc(0deg + 90deg));
+    }
+    50% {
+      transform: rotateY(359deg) rotateX(calc(359deg + 90deg));
+    }
+    to {
+      transform: rotateY(var(--rotateY-deg)) rotateX(calc(var(--rotateX-deg) + 90deg));
+    }
+  }
+
+  @keyframes dice-surface-5 {
+    from {
+      transform: rotateY(calc(0deg - 90deg)) rotateZ(calc(0deg - 0deg));
+    }
+    50% {
+      transform: rotateY(calc(359deg - 90deg)) rotateZ(calc(0deg - 359deg));
+    }
+    to {
+      transform: rotateY(calc(var(--rotateY-deg) - 90deg)) rotateZ(calc(0deg - var(--rotateX-deg)));
+    }
+  }
+
+  @keyframes dice-surface-6 {
+    from {
+      transform: rotateY(calc(0deg + 180deg)) rotateX(calc(0deg - 0deg));
+    }
+    50% {
+      transform: rotateY(calc(359deg + 180deg)) rotateX(calc(0deg - 359deg));
+    }
+    to {
+      transform: rotateY(calc(var(--rotateY-deg) + 180deg)) rotateX(calc(0deg - var(--rotateX-deg)));
+    }
   }
 }
