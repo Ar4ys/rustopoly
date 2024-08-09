@@ -128,22 +128,29 @@ fn Rows(cells_refs: CellsRefs) -> impl IntoView {
 fn Cell(index: usize, node_ref: NodeRef<Div>) -> impl IntoView {
     let game_state = GameState::use_context();
     let current_cell = move || game_state.get_cell(index);
-    let bg_class = move || match current_cell().ty {
-        CellType::Start => "bg-green-500",
-        CellType::Jail => "bg-yellow-500",
-        CellType::FreeParking => "bg-red-500",
-        CellType::GoToJail => "bg-purple-500",
-        CellType::Property => "bg-gray-500",
+    let is_property = move || current_cell().ty.try_unwrap_property().is_ok();
+    let bg_color = move || {
+        current_cell()
+            .ty
+            .try_unwrap_property()
+            .map(|prop| prop.data.group.color)
+            .unwrap_or_default()
     };
 
     view! {
-        <div node_ref=node_ref class=move || tw!("p-1", bg_class())>
+        <div
+            node_ref=node_ref
+            class=move || tw!("p-1", is_property() => "text-white")
+            style:background-color=bg_color
+        >
             {match current_cell().ty {
-                CellType::Start => "Start",
-                CellType::Jail => "Jail",
-                CellType::FreeParking => "FreeParking",
-                CellType::GoToJail => "GoToJail",
-                CellType::Property => "Property",
+                CellType::Start => "Start".to_owned(),
+                CellType::Jail => "Jail".to_owned(),
+                CellType::FreeParking => "FreeParking".to_owned(),
+                CellType::GoToJail => "GoToJail".to_owned(),
+                CellType::Tax(tax) => format!("Tax: {}", tax),
+                CellType::Chance => "Chance".to_owned(),
+                CellType::Property(prop) => format!("Property: {}", prop.data.title),
             }}
 
         </div>
