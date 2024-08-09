@@ -1,8 +1,6 @@
 use leptos::prelude::RwSignal;
 
-use crate::game_state::{
-    Cell, Money, Property, PropertyData, PropertyGroup, PropertyType, CELLS_COUNT,
-};
+use crate::cell::{Cell, Money, Property, PropertyData, PropertyGroup, PropertyType, CELLS_COUNT};
 
 // The names and colors don't actually match, because the naming scheme is from
 // the original Monopoly, while the colors are from Monopoly One

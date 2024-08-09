@@ -5,9 +5,11 @@ use tailwind_merge::tw;
 use web_sys::HtmlDivElement;
 
 use crate::{
+    cell::{Cell, CELLS_COUNT},
     components::dice::Dice,
-    game_state::{Cell, GameState, Player, CELLS_COUNT},
+    game_state::GameState,
     hooks::window_scroll::use_window_scroll,
+    player::Player,
 };
 
 #[derive(Debug, Clone, Copy)]

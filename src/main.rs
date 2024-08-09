@@ -7,11 +7,13 @@ use tracing_wasm::WASMLayer;
 use self::{app::App, utils::fmt_panic};
 
 mod app;
+mod cell;
 mod components;
 mod game_data;
 mod game_state;
 mod hooks;
 mod pages;
+mod player;
 mod utils;
 
 fn main() {
