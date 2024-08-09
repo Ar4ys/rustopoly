@@ -128,18 +128,19 @@ fn Rows(cells_refs: CellsRefs) -> impl IntoView {
 fn Cell(index: usize, node_ref: NodeRef<Div>) -> impl IntoView {
     let game_state = GameState::use_context();
     let current_cell = move || game_state.get_cell(index);
-    let is_property = move || current_cell().try_unwrap_property().is_ok();
+    let is_property = move || matches!(current_cell(), Cell::Property(_));
     let bg_color = move || {
-        current_cell()
-            .try_unwrap_property()
-            .map(|prop| prop.data.group.color)
-            .unwrap_or_default()
+        if let Cell::Property(prop) = current_cell() {
+            prop.data.group.color
+        } else {
+            "#fff"
+        }
     };
 
     view! {
         <div
             node_ref=node_ref
-            class=move || tw!("p-1", is_property() => "text-white")
+            class=move || tw!("p-1", !is_property() => "text-black")
             style:background-color=bg_color
         >
             {match current_cell() {
@@ -160,30 +161,51 @@ fn Cell(index: usize, node_ref: NodeRef<Div>) -> impl IntoView {
 pub fn PlayerCard(player: Player, #[prop(into, optional)] class: Signal<String>) -> impl IntoView {
     let game_state = GameState::use_context();
 
-    let background_color = move || {
-        (game_state.current_player() == player)
-            .then(|| player.color.get_value())
+    let is_current_player = move || game_state.current_player() == player;
+    let bg = move || {
+        is_current_player()
+            .then(|| player.color.get_player_gradient())
             .unwrap_or_default()
     };
 
     view! {
-        <div style:background-color=background_color class=move || tw!("bg-gray-500", class())>
-            <div>"Id: " {player.id}</div>
-            <div>"Name: " {player.name.get_value()}</div>
-            <div style:color=player.color.get_value()>"Color"</div>
+        <div
+            style:background=bg
+            class=move || {
+                tw!(
+                    "flex flex-col items-center justify-center p-3 bg-gray-900 transition-all",
+                    is_current_player() => "scale-[1.075]",
+                    class()
+                )
+            }
+        >
+            <div
+                class="w-14 h-14 bg-gray-900 rounded-full"
+                style:background=move || {
+                    (!is_current_player())
+                        .then(|| player.color.get_player_gradient())
+                        .unwrap_or_default()
+                }
+            />
+            <div class="mt-2 text-sm font-bold">{player.id}": "{player.name.get_value()}</div>
+            <div class="mt-4 text-2xl">
+                <span class="inline-block pr-0.5 opacity-50 scale-75">"$"</span>
+                {move || player.balance().to_string()}
+                <span class="pl-0.5 opacity-70">"k"</span>
+            </div>
         </div>
     }
 }
 
 #[component]
 fn PlayerToken(cells_refs: CellsRefs, player: Player) -> impl IntoView {
-    let width = 12f64;
-    let height = 12f64;
+    let width = 32f64;
+    let height = 32f64;
     let gap = 6f64;
 
     let game_state = GameState::use_context();
     let (scroll_x, scroll_y) = use_window_scroll();
-    let transform = RwSignal::new(String::new());
+    let coordinates = RwSignal::new(None);
 
     Effect::new(move |_| {
         let players = game_state.get_players_by_cell(player.position());
@@ -204,20 +226,21 @@ fn PlayerToken(cells_refs: CellsRefs, player: Player) -> impl IntoView {
             + height * current_player_index as f64
             + gap * current_player_index as f64;
 
-        transform.set(format!("translate({x}px, {y}px)"));
+        coordinates.set(Some((x, y)));
     });
 
     view! {
         <div
             on:transitionend=move |_| game_state.player_token_transition_end()
-            style:transform=transform
-            style:width=width.to_string()
-            style:height=height.to_string()
-            style:background-color=player.color.get_value()
+            style:left=move || coordinates().map(|(x, _)| format!("{x}px")).unwrap_or_default()
+            style:top=move || coordinates().map(|(_, y)| format!("{y}px")).unwrap_or_default()
+            style:width=format!("{width}px")
+            style:height=format!("{height}px")
+            style:background=player.color.get_cell_gradient()
             class=move || {
                 tw!(
-                    "absolute left-0 top-0 w-3 h-3 border-gray-600 border transition-transform",
-                    transform().is_empty() => "hidden"
+                    "absolute left-0 top-0 rounded-full [border:3px_solid_rgba(0,0,0,.5)] shadow-[0_0_15px_rgba(0,0,0,.667)] transition-all duration-1000",
+                    coordinates().is_none() => "hidden"
                 )
             }
         />

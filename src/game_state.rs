@@ -29,8 +29,8 @@ pub struct GameState {
 impl GameState {
     pub fn new() -> Self {
         let mut players = HashMap::new();
-        players.insert(0, Player::new(0, "Ar4ys", "#f87171"));
-        players.insert(1, Player::new(1, "Madeline", "#bfa0f1"));
+        players.insert(0, Player::new(0, "Ar4ys", PlayerColor::Blue));
+        players.insert(1, Player::new(1, "Madeline", PlayerColor::Green));
 
         Self {
             self_player: players[&0],
@@ -143,7 +143,7 @@ impl GameState {
     }
 }
 
-#[derive(Debug, Clone, Copy, TryUnwrap)]
+#[derive(Debug, Clone, Copy)]
 pub enum Cell {
     Start,
     Jail,
@@ -267,23 +267,54 @@ pub enum PlayerState {
 }
 
 #[derive(Debug, Clone, Copy)]
+pub enum PlayerColor {
+    Red,
+    Blue,
+    Green,
+    Purple,
+    Yellow,
+}
+
+impl PlayerColor {
+    pub fn get_player_gradient(&self) -> &'static str {
+        match self {
+            PlayerColor::Red => "linear-gradient(45deg,#cd3747,#f26b61)",
+            PlayerColor::Blue => "linear-gradient(45deg,#54c9f0,#2191e1)",
+            PlayerColor::Green => "linear-gradient(45deg,#66b343,#b0e372)",
+            PlayerColor::Purple => "linear-gradient(45deg,#a17fef,#d188e3)",
+            PlayerColor::Yellow => todo!("Add player card gradient to yellow"),
+        }
+    }
+
+    pub fn get_cell_gradient(&self) -> &'static str {
+        match self {
+            PlayerColor::Red => "linear-gradient(45deg,#d96975,#f59088)",
+            PlayerColor::Blue => "linear-gradient(45deg,#7ed6f3,#58ace8)",
+            PlayerColor::Green => "linear-gradient(45deg,#8cc672,#c3ea95)",
+            PlayerColor::Purple => "linear-gradient(45deg,#b89ff3,#dca5ea)",
+            PlayerColor::Yellow => todo!("Add cell gradient to yellow"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
 pub struct Player {
     pub id: PlayerId,
     pub name: StoredValue<String>,
-    pub color: StoredValue<String>,
-    balance: RwSignal<i64>,
+    pub color: PlayerColor,
+    balance: RwSignal<Money>,
     position: RwSignal<usize>,
     state: RwSignal<PlayerState>,
     connection_status: RwSignal<ConnectionStatus>,
 }
 
 impl Player {
-    pub fn new(id: PlayerId, name: &str, color: &str) -> Self {
+    pub fn new(id: PlayerId, name: &str, color: PlayerColor) -> Self {
         Self {
             id,
             name: StoredValue::new(name.to_owned()),
-            color: StoredValue::new(color.to_owned()),
-            balance: RwSignal::new(0),
+            color,
+            balance: RwSignal::new(0.into()),
             position: RwSignal::new(0),
             state: RwSignal::new(PlayerState::Playing),
             connection_status: RwSignal::new(ConnectionStatus::Connected),
@@ -304,7 +335,11 @@ impl Player {
     }
 
     pub fn position(&self) -> usize {
-        (self.position)()
+        self.position.get()
+    }
+
+    pub fn balance(&self) -> Money {
+        self.balance.get()
     }
 }
 
