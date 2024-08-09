@@ -143,25 +143,8 @@ impl GameState {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct Cell {
-    pub ty: CellType,
-    owner: RwSignal<Option<Player>>,
-    level: RwSignal<u8>,
-}
-
-impl Cell {
-    pub fn new(ty: CellType) -> Self {
-        Self {
-            ty,
-            owner: RwSignal::new(None),
-            level: RwSignal::new(0),
-        }
-    }
-}
-
 #[derive(Debug, Clone, Copy, TryUnwrap)]
-pub enum CellType {
+pub enum Cell {
     Start,
     Jail,
     FreeParking,

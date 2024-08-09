@@ -1,7 +1,7 @@
 use leptos::prelude::RwSignal;
 
 use crate::game_state::{
-    Cell, CellType, Money, Property, PropertyData, PropertyGroup, PropertyType, CELLS_COUNT,
+    Cell, Money, Property, PropertyData, PropertyGroup, PropertyType, CELLS_COUNT,
 };
 
 // The names and colors don't actually match, because the naming scheme is from
@@ -71,8 +71,8 @@ const UTILITIES_PROPERTY_TYPE: PropertyType = PropertyType::Utility {
 
 pub fn init_cells() -> [Cell; CELLS_COUNT] {
     [
-        CellType::Start,
-        CellType::Property(Property::new(
+        Cell::Start,
+        Cell::Property(Property::new(
             PropertyData {
                 title: "Chanel",
                 price: 600.into(),
@@ -84,8 +84,8 @@ pub fn init_cells() -> [Cell; CELLS_COUNT] {
                 level: RwSignal::new(0),
             },
         )),
-        CellType::Chance,
-        CellType::Property(Property::new(
+        Cell::Chance,
+        Cell::Property(Property::new(
             PropertyData {
                 title: "Hugo Boss",
                 price: 600.into(),
@@ -97,8 +97,8 @@ pub fn init_cells() -> [Cell; CELLS_COUNT] {
                 level: RwSignal::new(0),
             },
         )),
-        CellType::Tax(2000.into()),
-        CellType::Property(Property::new(
+        Cell::Tax(2000.into()),
+        Cell::Property(Property::new(
             PropertyData {
                 title: "Mercedes",
                 price: 2000.into(),
@@ -106,7 +106,7 @@ pub fn init_cells() -> [Cell; CELLS_COUNT] {
             },
             TRANSPORT_PROPERTY_TYPE,
         )),
-        CellType::Property(Property::new(
+        Cell::Property(Property::new(
             PropertyData {
                 title: "Adidas",
                 price: 1000.into(),
@@ -118,8 +118,8 @@ pub fn init_cells() -> [Cell; CELLS_COUNT] {
                 level: RwSignal::new(0),
             },
         )),
-        CellType::Chance,
-        CellType::Property(Property::new(
+        Cell::Chance,
+        Cell::Property(Property::new(
             PropertyData {
                 title: "Puma",
                 price: 1000.into(),
@@ -131,7 +131,7 @@ pub fn init_cells() -> [Cell; CELLS_COUNT] {
                 level: RwSignal::new(0),
             },
         )),
-        CellType::Property(Property::new(
+        Cell::Property(Property::new(
             PropertyData {
                 title: "Lacoste",
                 price: 1200.into(),
@@ -143,8 +143,8 @@ pub fn init_cells() -> [Cell; CELLS_COUNT] {
                 level: RwSignal::new(0),
             },
         )),
-        CellType::Jail,
-        CellType::Property(Property::new(
+        Cell::Jail,
+        Cell::Property(Property::new(
             PropertyData {
                 title: "VK",
                 price: 1400.into(),
@@ -156,7 +156,7 @@ pub fn init_cells() -> [Cell; CELLS_COUNT] {
                 level: RwSignal::new(0),
             },
         )),
-        CellType::Property(Property::new(
+        Cell::Property(Property::new(
             PropertyData {
                 title: "Rockstar Games",
                 price: 1500.into(),
@@ -164,7 +164,7 @@ pub fn init_cells() -> [Cell; CELLS_COUNT] {
             },
             UTILITIES_PROPERTY_TYPE,
         )),
-        CellType::Property(Property::new(
+        Cell::Property(Property::new(
             PropertyData {
                 title: "Facebook",
                 price: 1400.into(),
@@ -176,7 +176,7 @@ pub fn init_cells() -> [Cell; CELLS_COUNT] {
                 level: RwSignal::new(0),
             },
         )),
-        CellType::Property(Property::new(
+        Cell::Property(Property::new(
             PropertyData {
                 title: "Twitter",
                 price: 1600.into(),
@@ -188,7 +188,7 @@ pub fn init_cells() -> [Cell; CELLS_COUNT] {
                 level: RwSignal::new(0),
             },
         )),
-        CellType::Property(Property::new(
+        Cell::Property(Property::new(
             PropertyData {
                 title: "Audi",
                 price: 2000.into(),
@@ -196,7 +196,7 @@ pub fn init_cells() -> [Cell; CELLS_COUNT] {
             },
             TRANSPORT_PROPERTY_TYPE,
         )),
-        CellType::Property(Property::new(
+        Cell::Property(Property::new(
             PropertyData {
                 title: "Coca-Cola",
                 price: 1800.into(),
@@ -208,8 +208,8 @@ pub fn init_cells() -> [Cell; CELLS_COUNT] {
                 level: RwSignal::new(0),
             },
         )),
-        CellType::Chance,
-        CellType::Property(Property::new(
+        Cell::Chance,
+        Cell::Property(Property::new(
             PropertyData {
                 title: "Pepsi",
                 price: 1800.into(),
@@ -221,7 +221,7 @@ pub fn init_cells() -> [Cell; CELLS_COUNT] {
                 level: RwSignal::new(0),
             },
         )),
-        CellType::Property(Property::new(
+        Cell::Property(Property::new(
             PropertyData {
                 title: "Fanta",
                 price: 2000.into(),
@@ -233,8 +233,8 @@ pub fn init_cells() -> [Cell; CELLS_COUNT] {
                 level: RwSignal::new(0),
             },
         )),
-        CellType::FreeParking,
-        CellType::Property(Property::new(
+        Cell::FreeParking,
+        Cell::Property(Property::new(
             PropertyData {
                 title: "American Airlines",
                 price: 2200.into(),
@@ -246,8 +246,8 @@ pub fn init_cells() -> [Cell; CELLS_COUNT] {
                 level: RwSignal::new(0),
             },
         )),
-        CellType::Chance,
-        CellType::Property(Property::new(
+        Cell::Chance,
+        Cell::Property(Property::new(
             PropertyData {
                 title: "Lufthansa",
                 price: 2200.into(),
@@ -259,7 +259,7 @@ pub fn init_cells() -> [Cell; CELLS_COUNT] {
                 level: RwSignal::new(0),
             },
         )),
-        CellType::Property(Property::new(
+        Cell::Property(Property::new(
             PropertyData {
                 title: "British Airways",
                 price: 2400.into(),
@@ -271,7 +271,7 @@ pub fn init_cells() -> [Cell; CELLS_COUNT] {
                 level: RwSignal::new(0),
             },
         )),
-        CellType::Property(Property::new(
+        Cell::Property(Property::new(
             PropertyData {
                 title: "Ford",
                 price: 2000.into(),
@@ -279,7 +279,7 @@ pub fn init_cells() -> [Cell; CELLS_COUNT] {
             },
             TRANSPORT_PROPERTY_TYPE,
         )),
-        CellType::Property(Property::new(
+        Cell::Property(Property::new(
             PropertyData {
                 title: "McDonald's",
                 price: 2600.into(),
@@ -291,7 +291,7 @@ pub fn init_cells() -> [Cell; CELLS_COUNT] {
                 level: RwSignal::new(0),
             },
         )),
-        CellType::Property(Property::new(
+        Cell::Property(Property::new(
             PropertyData {
                 title: "Burger King",
                 price: 2600.into(),
@@ -303,7 +303,7 @@ pub fn init_cells() -> [Cell; CELLS_COUNT] {
                 level: RwSignal::new(0),
             },
         )),
-        CellType::Property(Property::new(
+        Cell::Property(Property::new(
             PropertyData {
                 title: "Rovio",
                 price: 1500.into(),
@@ -311,7 +311,7 @@ pub fn init_cells() -> [Cell; CELLS_COUNT] {
             },
             UTILITIES_PROPERTY_TYPE,
         )),
-        CellType::Property(Property::new(
+        Cell::Property(Property::new(
             PropertyData {
                 title: "KFC",
                 price: 2800.into(),
@@ -323,8 +323,8 @@ pub fn init_cells() -> [Cell; CELLS_COUNT] {
                 level: RwSignal::new(0),
             },
         )),
-        CellType::GoToJail,
-        CellType::Property(Property::new(
+        Cell::GoToJail,
+        Cell::Property(Property::new(
             PropertyData {
                 title: "Holiday Inn",
                 price: 3000.into(),
@@ -336,7 +336,7 @@ pub fn init_cells() -> [Cell; CELLS_COUNT] {
                 level: RwSignal::new(0),
             },
         )),
-        CellType::Property(Property::new(
+        Cell::Property(Property::new(
             PropertyData {
                 title: "Radisson Blu",
                 price: 3000.into(),
@@ -348,8 +348,8 @@ pub fn init_cells() -> [Cell; CELLS_COUNT] {
                 level: RwSignal::new(0),
             },
         )),
-        CellType::Chance,
-        CellType::Property(Property::new(
+        Cell::Chance,
+        Cell::Property(Property::new(
             PropertyData {
                 title: "Novotel",
                 price: 3200.into(),
@@ -361,7 +361,7 @@ pub fn init_cells() -> [Cell; CELLS_COUNT] {
                 level: RwSignal::new(0),
             },
         )),
-        CellType::Property(Property::new(
+        Cell::Property(Property::new(
             PropertyData {
                 title: "Land Rover",
                 price: 2000.into(),
@@ -369,8 +369,8 @@ pub fn init_cells() -> [Cell; CELLS_COUNT] {
             },
             TRANSPORT_PROPERTY_TYPE,
         )),
-        CellType::Tax(1000.into()),
-        CellType::Property(Property::new(
+        Cell::Tax(1000.into()),
+        Cell::Property(Property::new(
             PropertyData {
                 title: "Apple",
                 price: 3500.into(),
@@ -382,8 +382,8 @@ pub fn init_cells() -> [Cell; CELLS_COUNT] {
                 level: RwSignal::new(0),
             },
         )),
-        CellType::Chance,
-        CellType::Property(Property::new(
+        Cell::Chance,
+        Cell::Property(Property::new(
             PropertyData {
                 title: "Nokia",
                 price: 4000.into(),
@@ -396,5 +396,4 @@ pub fn init_cells() -> [Cell; CELLS_COUNT] {
             },
         )),
     ]
-    .map(Cell::new)
 }

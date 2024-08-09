@@ -6,7 +6,7 @@ use web_sys::HtmlDivElement;
 
 use crate::{
     components::dice::Dice,
-    game_state::{CellType, GameState, Player, CELLS_COUNT},
+    game_state::{Cell, GameState, Player, CELLS_COUNT},
     hooks::window_scroll::use_window_scroll,
 };
 
@@ -128,10 +128,9 @@ fn Rows(cells_refs: CellsRefs) -> impl IntoView {
 fn Cell(index: usize, node_ref: NodeRef<Div>) -> impl IntoView {
     let game_state = GameState::use_context();
     let current_cell = move || game_state.get_cell(index);
-    let is_property = move || current_cell().ty.try_unwrap_property().is_ok();
+    let is_property = move || current_cell().try_unwrap_property().is_ok();
     let bg_color = move || {
         current_cell()
-            .ty
             .try_unwrap_property()
             .map(|prop| prop.data.group.color)
             .unwrap_or_default()
@@ -143,14 +142,14 @@ fn Cell(index: usize, node_ref: NodeRef<Div>) -> impl IntoView {
             class=move || tw!("p-1", is_property() => "text-white")
             style:background-color=bg_color
         >
-            {match current_cell().ty {
-                CellType::Start => "Start".to_owned(),
-                CellType::Jail => "Jail".to_owned(),
-                CellType::FreeParking => "FreeParking".to_owned(),
-                CellType::GoToJail => "GoToJail".to_owned(),
-                CellType::Tax(tax) => format!("Tax: {}", tax),
-                CellType::Chance => "Chance".to_owned(),
-                CellType::Property(prop) => format!("Property: {}", prop.data.title),
+            {match current_cell() {
+                Cell::Start => "Start".to_owned(),
+                Cell::Jail => "Jail".to_owned(),
+                Cell::FreeParking => "FreeParking".to_owned(),
+                Cell::GoToJail => "GoToJail".to_owned(),
+                Cell::Tax(tax) => format!("Tax: {}", tax),
+                Cell::Chance => "Chance".to_owned(),
+                Cell::Property(prop) => format!("Property: {}", prop.data.title),
             }}
 
         </div>
