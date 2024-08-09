@@ -56,6 +56,7 @@ pub struct Player {
     pub color: PlayerColor,
     balance: RwSignal<Money>,
     position: RwSignal<usize>,
+    pub is_in_jail: RwSignal<bool>,
     state: RwSignal<PlayerState>,
     connection_status: RwSignal<ConnectionStatus>,
 }
@@ -68,6 +69,7 @@ impl Player {
             color,
             balance: RwSignal::new(15_000.into()),
             position: RwSignal::new(0),
+            is_in_jail: RwSignal::new(false),
             state: RwSignal::new(PlayerState::Playing),
             connection_status: RwSignal::new(ConnectionStatus::Connected),
         }
@@ -81,9 +83,14 @@ impl Player {
         self.position.set(index)
     }
 
-    pub fn append_position(&self, index: usize) {
+    pub fn append_position(&self, index: usize) -> (usize, usize) {
         self.position
-            .update(|position| *position = (*position + index) % CELLS_COUNT)
+            .try_update(|position| {
+                let prev = *position;
+                *position = (*position + index) % CELLS_COUNT;
+                (prev, *position)
+            })
+            .expect("Player::position signal should not be disposed")
     }
 
     pub fn position(&self) -> usize {
@@ -92,6 +99,25 @@ impl Player {
 
     pub fn balance(&self) -> Money {
         self.balance.get()
+    }
+
+    pub fn deposit(&self, amount: Money) {
+        self.balance.update(|balance| *balance += amount)
+    }
+
+    pub fn withdraw(&self, amount: Money) {
+        self.balance.update(|balance| *balance -= amount)
+    }
+
+    pub fn is_in_jail(&self) -> bool {
+        self.is_in_jail.get()
+    }
+
+    pub fn set_is_in_jail(&self, state: bool) {
+        self.is_in_jail.set(state);
+        if state {
+            self.set_position(10);
+        }
     }
 }
 

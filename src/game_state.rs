@@ -4,6 +4,7 @@ use leptos::prelude::*;
 
 use crate::{
     cell::{Cell, CELLS_COUNT},
+    components::in_game_modal::InGameModalState,
     game_data::init_cells,
     player::{Player, PlayerColor, PlayerId},
     utils::{oneshot_event_emitter::OneShotEventEmitter, rand},
@@ -20,6 +21,7 @@ pub struct GameState {
     render_dice: RwSignal<Option<(usize, usize)>>,
     player_token_transition_end: OneShotEventEmitter,
     dice_transition_end: OneShotEventEmitter,
+    pub in_game_modal_state: RwSignal<InGameModalState>,
 }
 
 impl GameState {
@@ -38,6 +40,7 @@ impl GameState {
             render_dice: RwSignal::new(None),
             player_token_transition_end: OneShotEventEmitter::new(),
             dice_transition_end: OneShotEventEmitter::new(),
+            in_game_modal_state: RwSignal::new(InGameModalState::new()),
         }
     }
 
@@ -70,7 +73,7 @@ impl GameState {
     }
 
     pub fn get_players_by_cell(&self, index: usize) -> Vec<Player> {
-        self.players.with(|players| {
+        self.players.with_untracked(|players| {
             players
                 .values()
                 .filter_map(|player| (player.position() == index).then_some(*player))
@@ -78,16 +81,31 @@ impl GameState {
         })
     }
 
+    // TODO: Better name
     pub async fn roll_dice(&self) {
         let dice1 = rand::get_usize(1..=6);
         let dice2 = rand::get_usize(1..=6);
         self.render_dice.set(Some((dice1, dice2)));
         self.dice_transition_end.listen_async().await;
-        self.current_player
-            .with_untracked(|player| player.append_position(dice1 + dice2));
-
+        let (prev_position, new_position) = self
+            .current_player
+            .get_untracked()
+            .append_position(dice1 + dice2);
         self.player_token_transition_end.listen_async().await;
         self.render_dice.set(None);
+
+        if prev_position + dice1 + dice2 >= CELLS_COUNT {
+            self.current_player.get_untracked().deposit(2000.into())
+        }
+
+        let current_cell = self.get_cell(new_position);
+        current_cell
+            .trigger(
+                self.current_player.get_untracked(),
+                self.in_game_modal_state,
+            )
+            .await;
+
         self.finish_step();
     }
 

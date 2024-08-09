@@ -5,8 +5,8 @@ use tailwind_merge::tw;
 use web_sys::HtmlDivElement;
 
 use crate::{
-    cell::{Cell, CELLS_COUNT},
-    components::dice::Dice,
+    cell::{Cell, Property, CELLS_COUNT},
+    components::{dice::Dice, in_game_modal::InGameModal},
     game_state::GameState,
     hooks::window_scroll::use_window_scroll,
     player::Player,
@@ -42,7 +42,7 @@ pub fn GamePage() -> impl IntoView {
     provide_context(game_state);
 
     view! {
-        <div class="grid gap-2 p-3 min-h-full grid-cols-[200px_auto] grid-rows-[repeat(5,1fr)] grow">
+        <div class="grid gap-9 p-7 h-screen grid-cols-[200px_auto] grid-rows-[repeat(5,1fr)] grow">
             {move || {
                 game_state
                     .get_players()
@@ -50,7 +50,7 @@ pub fn GamePage() -> impl IntoView {
                     .map(|player| view! { <PlayerCard player class="col-[1]".to_owned() /> })
                     .collect_view()
             }}
-            <div class="grid relative gap-0.5 min-h-full grid-columns-[2fr_repeat(9,21fr)_2fr] grid-rows-[2fr_repeat(9,1fr)_2fr] col-[2] row-[1/6]">
+            <div class="grid relative gap-0.5 min-h-full max-w-[50vw] grid-columns-[2fr_repeat(9,21fr)_2fr] grid-rows-[2fr_repeat(9,1fr)_2fr] col-[2] row-[1/6]">
                 <Rows cells_refs />
                 <Chat class="col-[2/11] row-[2/11]".to_owned() />
                 {move || {
@@ -131,30 +131,69 @@ fn Cell(index: usize, node_ref: NodeRef<Div>) -> impl IntoView {
     let game_state = GameState::use_context();
     let current_cell = move || game_state.get_cell(index);
     let is_property = move || matches!(current_cell(), Cell::Property(_));
-    let bg_color = move || {
+    let cell_bg = move || {
+        if let Cell::Property(prop) = current_cell() {
+            prop.owner
+                .get()
+                .map(|owner| owner.color.get_cell_gradient())
+                .unwrap_or("#fff")
+        } else {
+            "#fff"
+        }
+    };
+    let rent_bg = move || {
         if let Cell::Property(prop) = current_cell() {
             prop.data.group.color
         } else {
-            "#fff"
+            ""
         }
     };
 
     view! {
         <div
             node_ref=node_ref
-            class=move || tw!("p-1", !is_property() => "text-black")
-            style:background-color=bg_color
+            class=move || tw!("relative p-1", cell_bg() == "#fff" => "text-black")
+            style:background=cell_bg
         >
-            {match current_cell() {
-                Cell::Start => "Start".to_owned(),
-                Cell::Jail => "Jail".to_owned(),
-                Cell::FreeParking => "FreeParking".to_owned(),
-                Cell::GoToJail => "GoToJail".to_owned(),
-                Cell::Tax(tax) => format!("Tax: {}", tax),
-                Cell::Chance => "Chance".to_owned(),
-                Cell::Property(prop) => format!("Property: {}", prop.data.title),
-            }}
 
+            {match current_cell() {
+                Cell::Start => "Start".into_any(),
+                Cell::Jail => "Jail".into_any(),
+                Cell::FreeParking => "FreeParking".into_any(),
+                Cell::GoToJail => "GoToJail".into_any(),
+                Cell::Tax(tax) => format!("Tax: {}", tax).into_any(),
+                Cell::Chance => "Chance".into_any(),
+                Cell::Property(prop) => {
+                    view! {
+                        <>
+                            {format!("Property: {}", prop.data.title)}
+                            <div
+                                style:background=rent_bg
+                                class=tw!(
+                                    "absolute [line-height:1.75rem] text-center text-white",
+                                        match index {
+                                        0..10 => "left-0 -top-7 w-full h-7",
+                                        10..20 => "top-0 -right-7 h-full w-7 [writing-mode:vertical-lr]",
+                                        20..30 => "left-0 -bottom-7 w-full h-7",
+                                        30..40 => "top-0 -left-7 h-full w-7 [writing-mode:vertical-lr] rotate-180",
+                                        _ => unreachable!(),
+                                    }
+                                )
+                            >
+                                {move || {
+                                    if prop.owner.get().is_some() {
+                                        prop.rent().to_string()
+                                    } else {
+                                        prop.data.price.to_string()
+                                    }
+                                }}
+                                "k"
+                            </div>
+                        </>
+                    }
+                        .into_any()
+                }
+            }}
         </div>
     }
 }
@@ -176,7 +215,7 @@ pub fn PlayerCard(player: Player, #[prop(into, optional)] class: Signal<String>)
             class=move || {
                 tw!(
                     "flex flex-col items-center justify-center p-3 bg-gray-900 transition-all",
-                    is_current_player() => "scale-[1.075]",
+                    is_current_player() => "scale-105",
                     class()
                 )
             }
@@ -265,10 +304,13 @@ pub fn Chat(#[prop(into, optional)] class: Signal<String>) -> impl IntoView {
 
     view! {
         <div
-            class=move || tw!("bg-cyan-700", !roll_dice_pending() => "cursor-pointer", class())
+            class=move || {
+                tw!("relative bg-cyan-700", !roll_dice_pending() => "cursor-pointer", class())
+            }
             on:click=roll_dice
         >
             "Chat"
+            <InGameModal />
         </div>
     }
 }
