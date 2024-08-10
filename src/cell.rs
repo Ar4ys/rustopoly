@@ -4,7 +4,6 @@ use derive_more::derive::{
     Add, AddAssign, Constructor, Deref, Div, DivAssign, From, Mul, MulAssign, Neg, Not, Rem,
     RemAssign, Sub, SubAssign,
 };
-use futures::{channel::mpsc, StreamExt};
 use leptos::prelude::*;
 
 use crate::{
@@ -27,7 +26,7 @@ pub enum Cell {
 }
 
 impl Cell {
-    pub async fn trigger(&self, player: Player, in_game_modal: RwSignal<InGameModalState>) {
+    pub async fn trigger(&self, player: Player, in_game_modal: InGameModalState) {
         match self {
             Cell::Jail | Cell::FreeParking => {}
             Cell::Start => player.deposit(1000.into()),
@@ -35,67 +34,54 @@ impl Cell {
             Cell::Property(prop) => {
                 if let Some(owner) = prop.owner.get_untracked() {
                     let rent = untrack(|| prop.rent());
-                    let (sender, mut receiver) = mpsc::unbounded();
-                    in_game_modal.set(InGameModalState::OneButton {
-                        text: format!("Oi! You owe this fine lad some moneh: {}$", rent),
-                        button_text: "Pay moneh".to_owned(),
-                        channel: sender,
-                    });
-
-                    receiver.next().await;
-                    in_game_modal.set(InGameModalState::None);
+                    in_game_modal
+                        .one_button_async(
+                            &format!("Oi! You owe this fine lad some moneh: {}$", rent),
+                            "Pay moneh",
+                        )
+                        .await;
                     player.withdraw(rent);
                     owner.deposit(rent);
                 } else {
-                    let (sender, mut receiver) = mpsc::unbounded();
-                    in_game_modal.set(InGameModalState::TwoButton {
-                        text: format!(
-                            "Oi! You wanna buy this fine land? It's gonna cost ya {}$",
-                            prop.data.price
-                        ),
-                        ok_button_text: "Buy".to_owned(),
-                        cancel_button_text: "Decline".to_owned(),
-                        channel: sender,
-                    });
+                    let response = in_game_modal
+                        .two_buttons_async(
+                            &format!(
+                                "Oi! You wanna buy this fine land? It's gonna cost ya {}$",
+                                prop.data.price
+                            ),
+                            "Buy",
+                            "Decline",
+                        )
+                        .await;
 
-                    if let Some(ModalResponse::Ok) = receiver.next().await {
+                    if let ModalResponse::Ok = response {
                         player.withdraw(prop.data.price);
                         prop.owner.set(Some(player));
                     }
-
-                    in_game_modal.set(InGameModalState::None);
                 }
             }
 
             Cell::Chance => {
                 let random_chance = rand::get_usize(0..=6);
                 let you_get = [500, 1000, 2000, -2000, -1000, -500].map(Money::new)[random_chance];
-                let (sender, mut receiver) = mpsc::unbounded();
-                in_game_modal.set(InGameModalState::OneButton {
-                    text: format!("Your chance is: {you_get}$"),
-                    button_text: if you_get.is_negative() {
-                        "Pay moneh".to_owned()
-                    } else {
-                        "Get moneh".to_owned()
-                    },
-                    channel: sender,
-                });
+                in_game_modal
+                    .one_button_async(
+                        &format!("Your chance is: {you_get}$"),
+                        if you_get.is_negative() {
+                            "Pay moneh"
+                        } else {
+                            "Get moneh"
+                        },
+                    )
+                    .await;
 
-                receiver.next().await;
-                in_game_modal.set(InGameModalState::None);
                 player.deposit(you_get);
             }
 
             Cell::Tax(amount) => {
-                let (sender, mut receiver) = mpsc::unbounded();
-                in_game_modal.set(InGameModalState::OneButton {
-                    text: format!("You owe me: {amount}$"),
-                    button_text: "Pay moneh".to_owned(),
-                    channel: sender,
-                });
-
-                receiver.next().await;
-                in_game_modal.set(InGameModalState::None);
+                in_game_modal
+                    .one_button_async(&format!("You owe me: {amount}$"), "Pay moneh")
+                    .await;
                 player.withdraw(*amount);
             }
         }

@@ -21,7 +21,7 @@ pub struct GameState {
     render_dice: RwSignal<Option<(usize, usize)>>,
     player_token_transition_end: OneShotEventEmitter,
     dice_transition_end: OneShotEventEmitter,
-    pub in_game_modal_state: RwSignal<InGameModalState>,
+    pub in_game_modal_state: InGameModalState,
 }
 
 impl GameState {
@@ -40,7 +40,7 @@ impl GameState {
             render_dice: RwSignal::new(None),
             player_token_transition_end: OneShotEventEmitter::new(),
             dice_transition_end: OneShotEventEmitter::new(),
-            in_game_modal_state: RwSignal::new(InGameModalState::new()),
+            in_game_modal_state: InGameModalState::new(),
         }
     }
 
