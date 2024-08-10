@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use leptos::prelude::*;
 
 use crate::{
-    cell::{Cell, CELLS_COUNT},
+    cell::{Cell, PropertyGroup, CELLS_COUNT},
     components::in_game_modal::InGameModalState,
     game_data::init_cells,
     player::{Player, PlayerColor, PlayerId},
@@ -18,7 +18,7 @@ pub struct GameState {
     current_player: RwSignal<Player>,
     current_step: RwSignal<usize>,
     current_round: RwSignal<usize>,
-    render_dice: RwSignal<Option<(usize, usize)>>,
+    rolled_dice: RwSignal<Option<(usize, usize)>>,
     player_token_transition_end: OneShotEventEmitter,
     dice_transition_end: OneShotEventEmitter,
     pub in_game_modal_state: InGameModalState,
@@ -37,7 +37,7 @@ impl GameState {
             current_round: RwSignal::new(0),
             cells: init_cells(),
             players: RwSignal::new(players),
-            render_dice: RwSignal::new(None),
+            rolled_dice: RwSignal::new(None),
             player_token_transition_end: OneShotEventEmitter::new(),
             dice_transition_end: OneShotEventEmitter::new(),
             in_game_modal_state: InGameModalState::new(),
@@ -52,8 +52,8 @@ impl GameState {
         self.current_player.get()
     }
 
-    pub fn render_dice(&self) -> Option<(usize, usize)> {
-        self.render_dice.get()
+    pub fn rolled_dice(&self) -> Option<(usize, usize)> {
+        self.rolled_dice.get()
     }
 
     pub fn get_cell(&self, index: usize) -> Cell {
@@ -85,26 +85,20 @@ impl GameState {
     pub async fn roll_dice(&self) {
         let dice1 = rand::get_usize(1..=6);
         let dice2 = rand::get_usize(1..=6);
-        self.render_dice.set(Some((dice1, dice2)));
+        self.rolled_dice.set(Some((dice1, dice2)));
         self.dice_transition_end.listen_async().await;
         let (prev_position, new_position) = self
             .current_player
             .get_untracked()
             .append_position(dice1 + dice2);
         self.player_token_transition_end.listen_async().await;
-        self.render_dice.set(None);
 
         if prev_position + dice1 + dice2 >= CELLS_COUNT {
             self.current_player.get_untracked().deposit(2000.into())
         }
 
         let current_cell = self.get_cell(new_position);
-        current_cell
-            .trigger(
-                self.current_player.get_untracked(),
-                self.in_game_modal_state,
-            )
-            .await;
+        current_cell.trigger(self).await;
 
         self.finish_step();
     }
@@ -145,6 +139,7 @@ impl GameState {
         };
 
         self.current_player.set(next_player);
+        self.rolled_dice.set(None);
 
         is_round_ended
     }
@@ -152,7 +147,32 @@ impl GameState {
     pub fn player_token_transition_end(&self) {
         self.player_token_transition_end.trigger();
     }
+
     pub fn dice_transition_end(&self) {
         self.dice_transition_end.trigger();
+    }
+
+    pub fn has_from_group(
+        &self,
+        player: &Player,
+        property_group: &PropertyGroup,
+    ) -> (usize, usize) {
+        let prop_groups_iter = self
+            .cells
+            .iter()
+            .filter_map(|cell| cell.try_unwrap_property().ok())
+            .filter(|prop| prop.data.group == *property_group);
+
+        let total = prop_groups_iter.clone().count();
+        let owns = prop_groups_iter
+            .filter(|prop| prop.owner.get().is_some_and(|owner| owner == *player))
+            .count();
+
+        (owns, total)
+    }
+
+    pub fn has_monopoly_on(&self, player: &Player, property_group: &PropertyGroup) -> bool {
+        let (owns, total) = self.has_from_group(player, property_group);
+        owns == total
     }
 }

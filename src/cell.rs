@@ -2,19 +2,17 @@ use std::fmt::Display;
 
 use derive_more::derive::{
     Add, AddAssign, Constructor, Deref, Div, DivAssign, From, Mul, MulAssign, Neg, Not, Rem,
-    RemAssign, Sub, SubAssign,
+    RemAssign, Sub, SubAssign, TryUnwrap,
 };
 use leptos::prelude::*;
 
 use crate::{
-    components::in_game_modal::{InGameModalState, ModalResponse},
-    player::Player,
-    utils::rand,
+    components::in_game_modal::ModalResponse, game_state::GameState, player::Player, utils::rand,
 };
 
 pub const CELLS_COUNT: usize = 40;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, TryUnwrap)]
 pub enum Cell {
     Start,
     Jail,
@@ -26,24 +24,25 @@ pub enum Cell {
 }
 
 impl Cell {
-    pub async fn trigger(&self, player: Player, in_game_modal: InGameModalState) {
+    pub async fn trigger(&self, game_state: &GameState) {
+        let current_player = untrack(|| game_state.current_player());
         match self {
             Cell::Jail | Cell::FreeParking => {}
-            Cell::Start => player.deposit(1000.into()),
-            Cell::GoToJail => player.set_is_in_jail(true),
+            Cell::Start => current_player.deposit(1000.into()),
+            Cell::GoToJail => current_player.set_is_in_jail(true),
             Cell::Property(prop) => {
-                if let Some(owner) = prop.owner.get_untracked() {
-                    let rent = untrack(|| prop.rent());
-                    in_game_modal
+                if let Some(rent) = untrack(|| prop.rent(game_state)) {
+                    game_state
+                        .in_game_modal_state
                         .one_button_async(
                             &format!("Oi! You owe this fine lad some moneh: {}$", rent),
                             "Pay moneh",
                         )
                         .await;
-                    player.withdraw(rent);
-                    owner.deposit(rent);
+                    prop.pay_rent(&current_player, game_state)
                 } else {
-                    let response = in_game_modal
+                    let response = game_state
+                        .in_game_modal_state
                         .two_buttons_async(
                             &format!(
                                 "Oi! You wanna buy this fine land? It's gonna cost ya {}$",
@@ -55,8 +54,7 @@ impl Cell {
                         .await;
 
                     if let ModalResponse::Ok = response {
-                        player.withdraw(prop.data.price);
-                        prop.owner.set(Some(player));
+                        prop.buy(&current_player);
                     }
                 }
             }
@@ -64,7 +62,8 @@ impl Cell {
             Cell::Chance => {
                 let random_chance = rand::get_usize(0..=6);
                 let you_get = [500, 1000, 2000, -2000, -1000, -500].map(Money::new)[random_chance];
-                in_game_modal
+                game_state
+                    .in_game_modal_state
                     .one_button_async(
                         &format!("Your chance is: {you_get}$"),
                         if you_get.is_negative() {
@@ -75,14 +74,15 @@ impl Cell {
                     )
                     .await;
 
-                player.deposit(you_get);
+                current_player.deposit(you_get);
             }
 
             Cell::Tax(amount) => {
-                in_game_modal
+                game_state
+                    .in_game_modal_state
                     .one_button_async(&format!("You owe me: {amount}$"), "Pay moneh")
                     .await;
-                player.withdraw(*amount);
+                current_player.withdraw(*amount);
             }
         }
     }
@@ -121,7 +121,7 @@ pub enum PropertyType {
     },
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PropertyGroup {
     pub title: &'static str,
     pub color: &'static str,
@@ -145,14 +145,56 @@ impl Property {
         self.data.price * 6 / 10
     }
 
-    pub fn rent(&self) -> Money {
-        match self.ty {
-            // TODO Properly double base rent if monopoly
-            PropertyType::Simple { levels, level, .. } => levels[level.get()],
-            // TODO Properly calculate rent
-            PropertyType::Transport { levels } => levels[0],
-            // TODO Properly calculate rent
-            PropertyType::Utility { levels } => levels[0],
+    pub fn rent(&self, game_state: &GameState) -> Option<Money> {
+        let owner = self.owner.get()?;
+
+        Some(match self.ty {
+            PropertyType::Simple { levels, level, .. } => {
+                let rent = levels[level.get()];
+                let has_monopoly_on = game_state.has_monopoly_on(&owner, &self.data.group);
+
+                if has_monopoly_on && level.get() == 0 {
+                    rent * 2
+                } else {
+                    rent
+                }
+            }
+            PropertyType::Transport { levels } => {
+                let (owns, _) = game_state.has_from_group(&owner, &self.data.group);
+                levels[owns - 1]
+            }
+
+            PropertyType::Utility { levels } => {
+                let (dice1, dice2) = game_state
+                    .rolled_dice()
+                    .expect("Rolled dice should be present when calculating rent");
+                let (owns, _) = game_state.has_from_group(&owner, &self.data.group);
+                let rent = levels[owns - 1];
+
+                rent * (dice1 + dice2) as i64
+            }
+        })
+    }
+
+    pub fn pay_rent(&self, player: &Player, game_state: &GameState) {
+        if let Some((owner, rent)) = self
+            .owner
+            .get_untracked()
+            .zip(untrack(|| self.rent(game_state)))
+        {
+            player.withdraw(rent);
+            owner.deposit(rent);
+        } else {
+            tracing::warn!("Tried to pay rent to property without owner.")
+        }
+    }
+
+    pub fn buy(&self, player: &Player) {
+        if self.owner.get_untracked().is_some() {
+            tracing::warn!("Tried to buy property with owner.")
+        } else {
+            player.withdraw(self.data.price);
+            self.owner.set(Some(*player));
         }
     }
 }

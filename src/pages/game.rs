@@ -1,11 +1,11 @@
 use std::{convert::identity, time::Duration};
 
-use leptos::{html::Div, prelude::*};
+use leptos::{html::Div, prelude::*, spawn::spawn_local};
 use tailwind_merge::tw;
 use web_sys::HtmlDivElement;
 
 use crate::{
-    cell::{Cell, Property, CELLS_COUNT},
+    cell::{Cell, PropertyType, CELLS_COUNT},
     components::{dice::Dice, in_game_modal::InGameModal},
     game_state::GameState,
     hooks::window_scroll::use_window_scroll,
@@ -37,9 +37,12 @@ impl CellsRefs {
 
 #[component]
 pub fn GamePage() -> impl IntoView {
+    let is_dice_shown = RwSignal::new(false);
     let cells_refs = CellsRefs::new();
     let game_state = GameState::new();
     provide_context(game_state);
+
+    Effect::new(move |_| is_dice_shown.set(game_state.rolled_dice().is_some()));
 
     view! {
         <div class="grid gap-9 p-7 h-screen grid-cols-[200px_auto] grid-rows-[repeat(5,1fr)] grow">
@@ -55,7 +58,8 @@ pub fn GamePage() -> impl IntoView {
                 <Chat class="col-[2/11] row-[2/11]".to_owned() />
                 {move || {
                     game_state
-                        .render_dice()
+                        .rolled_dice()
+                        .filter(|_| is_dice_shown.get())
                         .map(|(a, b)| {
                             view! {
                                 <div class="flex absolute top-1/2 left-1/2 gap-4 -translate-x-1/2 -translate-y-1/2">
@@ -64,7 +68,10 @@ pub fn GamePage() -> impl IntoView {
                                         animated=true
                                         on_animation_end=Callback::new(move |_| {
                                             set_timeout(
-                                                move || game_state.dice_transition_end(),
+                                                move || {
+                                                    is_dice_shown.set(false);
+                                                    game_state.dice_transition_end();
+                                                },
                                                 Duration::from_millis(200),
                                             );
                                         })
@@ -130,30 +137,30 @@ fn Rows(cells_refs: CellsRefs) -> impl IntoView {
 fn Cell(index: usize, node_ref: NodeRef<Div>) -> impl IntoView {
     let game_state = GameState::use_context();
     let current_cell = move || game_state.get_cell(index);
-    let is_property = move || matches!(current_cell(), Cell::Property(_));
     let cell_bg = move || {
-        if let Cell::Property(prop) = current_cell() {
-            prop.owner
-                .get()
-                .map(|owner| owner.color.get_cell_gradient())
-                .unwrap_or("#fff")
-        } else {
-            "#fff"
-        }
+        current_cell()
+            .try_unwrap_property()
+            .ok()
+            .and_then(|prop| prop.owner.get())
+            .map(|owner| owner.color.get_cell_gradient())
+            .unwrap_or("#fff")
     };
     let rent_bg = move || {
-        if let Cell::Property(prop) = current_cell() {
-            prop.data.group.color
-        } else {
-            ""
-        }
+        current_cell()
+            .try_unwrap_property()
+            .map(|prop| prop.data.group.color)
+            .unwrap_or_default()
     };
+
+    let trigger_on_click =
+        move |_| spawn_local(async move { untrack(current_cell).trigger(&game_state).await });
 
     view! {
         <div
             node_ref=node_ref
             class=move || tw!("relative p-1", cell_bg() == "#fff" => "text-black")
             style:background=cell_bg
+            on:click=trigger_on_click
         >
 
             {match current_cell() {
@@ -181,13 +188,20 @@ fn Cell(index: usize, node_ref: NodeRef<Div>) -> impl IntoView {
                                 )
                             >
                                 {move || {
-                                    if prop.owner.get().is_some() {
-                                        prop.rent().to_string()
+                                    if let (PropertyType::Utility { levels }, Some(owner)) = (
+                                        prop.ty,
+                                        prop.owner.get(),
+                                    ) {
+                                        let (owns, _) = game_state
+                                            .has_from_group(&owner, &prop.data.group);
+                                        format!("x{}", levels[owns - 1])
                                     } else {
-                                        prop.data.price.to_string()
+                                        format!(
+                                            "{}k",
+                                            prop.rent(&game_state).unwrap_or(prop.data.price),
+                                        )
                                     }
                                 }}
-                                "k"
                             </div>
                         </>
                     }
