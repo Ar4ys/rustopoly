@@ -1,11 +1,17 @@
-use std::{convert::identity, time::Duration};
+use std::{convert::identity, ops::Deref, time::Duration};
 
-use leptos::{html::Div, prelude::*, spawn::spawn_local};
+use leptos::{
+    either::{Either, EitherOf3},
+    ev,
+    html::Div,
+    prelude::*,
+    spawn::spawn_local,
+};
 use tailwind_merge::tw;
-use web_sys::HtmlDivElement;
+use web_sys::{HtmlDivElement, HtmlElement, Node};
 
 use crate::{
-    cell::{Cell, PropertyType, CELLS_COUNT},
+    cell::{Cell, Property, PropertyType, CELLS_COUNT},
     components::{dice::Dice, in_game_modal::InGameModal},
     game_state::GameState,
     hooks::window_scroll::use_window_scroll,
@@ -136,6 +142,7 @@ fn Rows(cells_refs: CellsRefs) -> impl IntoView {
 #[component]
 fn Cell(index: usize, node_ref: NodeRef<Div>) -> impl IntoView {
     let game_state = GameState::use_context();
+    let is_info_open = RwSignal::new(false);
     let current_cell = move || game_state.get_cell(index);
     let cell_bg = move || {
         current_cell()
@@ -152,17 +159,38 @@ fn Cell(index: usize, node_ref: NodeRef<Div>) -> impl IntoView {
             .unwrap_or_default()
     };
 
-    let trigger_on_click =
-        move |_| spawn_local(async move { untrack(current_cell).trigger(&game_state).await });
+    let handle_click = move |_| {
+        if let Cell::Property(_) = current_cell() {
+            is_info_open.update(|is_info_open| *is_info_open = !*is_info_open)
+        }
+    };
+
+    let handle = window_event_listener(ev::click, move |event| {
+        let Some(node_ref) = node_ref.get_untracked() else {
+            return;
+        };
+
+        // TODO: When you press on cell - it automatically closes
+
+        let is_click_inside_cell = node_ref.contains(Some(&event_target::<Node>(&event)));
+
+        if !is_click_inside_cell {
+            is_info_open.set(false)
+        }
+    });
+
+    on_cleanup(move || handle.remove());
+
+    // let trigger_on_click =
+    //     move |_| spawn_local(async move { untrack(current_cell).trigger(&game_state).await });
 
     view! {
         <div
             node_ref=node_ref
-            class=move || tw!("relative p-1", cell_bg() == "#fff" => "text-black")
+            class=move || tw!("relative p-1 cursor-pointer", cell_bg() == "#fff" => "text-black")
             style:background=cell_bg
-            on:click=trigger_on_click
+            on:click=handle_click
         >
-
             {match current_cell() {
                 Cell::Start => "Start".into_any(),
                 Cell::Jail => "Jail".into_any(),
@@ -173,12 +201,27 @@ fn Cell(index: usize, node_ref: NodeRef<Div>) -> impl IntoView {
                 Cell::Property(prop) => {
                     view! {
                         <>
+                            <Show when=is_info_open>
+                                <PropertyInfo
+                                    property=prop
+                                    class=tw!(
+                                        "absolute z-10",
+                                        match index {
+                                            0..10 => "left-1/2 top-full -translate-x-1/2 translate-y-2",
+                                            10..20 => "top-1/2 right-full -translate-x-2 -translate-y-1/2",
+                                            20..30 => "left-1/2 bottom-full -translate-x-1/2 -translate-y-2",
+                                            30..40 => "top-1/2 left-full translate-x-2 -translate-y-1/2",
+                                            _ => unreachable!(),
+                                        }
+                                    )
+                                />
+                            </Show>
                             {format!("Property: {}", prop.data.title)}
                             <div
                                 style:background=rent_bg
                                 class=tw!(
-                                    "absolute [line-height:1.75rem] text-center text-white",
-                                        match index {
+                                    "absolute leading-7 text-center text-white",
+                                    match index {
                                         0..10 => "left-0 -top-7 w-full h-7",
                                         10..20 => "top-0 -right-7 h-full w-7 [writing-mode:vertical-lr]",
                                         20..30 => "left-0 -bottom-7 w-full h-7",
@@ -208,6 +251,187 @@ fn Cell(index: usize, node_ref: NodeRef<Div>) -> impl IntoView {
                         .into_any()
                 }
             }}
+        </div>
+    }
+}
+
+#[component]
+pub fn PropertyInfo(
+    #[prop(optional)] node_ref: NodeRef<Div>,
+    property: Property,
+    class: String,
+) -> impl IntoView {
+    view! {
+        <div node_ref=node_ref class=tw!("rounded-md overflow-hidden w-52", class)>
+            <div class="py-3 px-4 text-white" style:background=property.data.group.color>
+                <div class="text-lg font-bold">{property.data.title}</div>
+                <div class="-mt-0.5 text-xs font-bold opacity-75">{property.data.group.title}</div>
+            </div>
+            <div class="flex flex-col gap-2.5 py-3 px-4 text-gray-500 bg-white">
+                <div class="leading-[14px]">
+                    {move || match property.ty {
+                        PropertyType::Simple { .. } => "Build agencies to make rent higher.",
+                        PropertyType::Transport { .. } => {
+                            "Rent depends on amount of autos you have."
+                        }
+                        PropertyType::Utility { .. } => {
+                            "Rent depends on the dice sum and amount of developers you have."
+                        }
+                    }}
+                </div>
+                <div>
+                    {move || match property.ty {
+                        PropertyType::Simple { levels, .. } => {
+                            EitherOf3::A(
+                                view! {
+                                    <>
+                                        <div class="flex justify-between">
+                                            <span>"Base rent"</span>
+                                            <span>
+                                                {move || levels[0].to_string()}
+                                                <span class="opacity-70">"k"</span>
+                                            </span>
+                                        </div>
+                                        <div class="flex justify-between">
+                                            <span>"★"</span>
+                                            <span>
+                                                {move || levels[1].to_string()}
+                                                <span class="opacity-70">"k"</span>
+                                            </span>
+                                        </div>
+                                        <div class="flex justify-between">
+                                            <span>"★ ★"</span>
+                                            <span>
+                                                {move || levels[2].to_string()}
+                                                <span class="opacity-70">"k"</span>
+                                            </span>
+                                        </div>
+                                        <div class="flex justify-between">
+                                            <span>"★ ★ ★"</span>
+                                            <span>
+                                                {move || levels[3].to_string()}
+                                                <span class="opacity-70">"k"</span>
+                                            </span>
+                                        </div>
+                                        <div class="flex justify-between">
+                                            <span>"★ ★ ★ ★"</span>
+                                            <span>
+                                                {move || levels[4].to_string()}
+                                                <span class="opacity-70">"k"</span>
+                                            </span>
+                                        </div>
+                                        <div class="flex justify-between">
+                                            <span class="text-yellow-500 scale-150">"★"</span>
+                                            <span>
+                                                {move || levels[5].to_string()}
+                                                <span class="opacity-70">"k"</span>
+                                            </span>
+                                        </div>
+                                    </>
+                                },
+                            )
+                        }
+                        PropertyType::Transport { levels } => {
+                            EitherOf3::B(
+                                view! {
+                                    <>
+                                        <div class="flex justify-between">
+                                            <span>"1 field"</span>
+                                            <span>
+                                                {move || levels[0].to_string()}
+                                                <span class="opacity-70">"k"</span>
+                                            </span>
+                                        </div>
+                                        <div class="flex justify-between">
+                                            <span>"2 fields"</span>
+                                            <span>
+                                                {move || levels[1].to_string()}
+                                                <span class="opacity-70">"k"</span>
+                                            </span>
+                                        </div>
+                                        <div class="flex justify-between">
+                                            <span>"3 fields"</span>
+                                            <span>
+                                                {move || levels[2].to_string()}
+                                                <span class="opacity-70">"k"</span>
+                                            </span>
+                                        </div>
+                                        <div class="flex justify-between">
+                                            <span>"4 fields"</span>
+                                            <span>
+                                                {move || levels[3].to_string()}
+                                                <span class="opacity-70">"k"</span>
+                                            </span>
+                                        </div>
+                                    </>
+                                },
+                            )
+                        }
+                        PropertyType::Utility { levels } => {
+                            EitherOf3::C(
+                                view! {
+                                    <>
+                                        <div class="flex justify-between">
+                                            <span>"1 field"</span>
+                                            <span>
+                                                <span class="opacity-70">"x"</span>
+                                                {move || levels[0].to_string()}
+                                            </span>
+                                        </div>
+                                        <div class="flex justify-between">
+                                            <span>"2 fields"</span>
+                                            <span>
+                                                <span class="opacity-70">"x"</span>
+                                                {move || levels[1].to_string()}
+                                            </span>
+                                        </div>
+                                    </>
+                                },
+                            )
+                        }
+                    }}
+                </div>
+                <div>
+                    <div class="flex justify-between">
+                        <span>"Field's price"</span>
+                        <span>
+                            {move || property.data.price.to_string()}
+                            <span class="pl-0.5 opacity-70">"k"</span>
+                        </span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span>"Field's mortgage"</span>
+                        <span>
+                            {move || property.reward_for_mortgaging().to_string()}
+                            <span class="pl-0.5 opacity-70">"k"</span>
+                        </span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span>"Field's recovery"</span>
+                        <span>
+                            {move || property.recovery_price().to_string()}
+                            <span class="pl-0.5 opacity-70">"k"</span>
+                        </span>
+                    </div>
+                    {move || {
+                        if let PropertyType::Simple { level_price, .. } = property.ty {
+                            Either::Left(
+                                view! {
+                                    <div class="flex justify-between">
+                                        <span>"Agency price"</span>
+                                        <span>
+                                            {move || level_price.to_string()}
+                                            <span class="pl-0.5 opacity-70">"k"</span>
+                                        </span>
+                                    </div>
+                                },
+                            )
+                        } else {
+                            Either::Right(())
+                        }
+                    }}
+                </div>
+            </div>
         </div>
     }
 }
