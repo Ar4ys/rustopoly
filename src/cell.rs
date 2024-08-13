@@ -154,6 +154,9 @@ impl Property {
 
     pub fn rent(&self, game_state: &GameState) -> Option<Money> {
         let owner = self.owner.get()?;
+        if self.mortgaged_for().is_some() {
+            return Some(0.into());
+        }
 
         Some(match self.ty {
             PropertyType::Simple { levels, level, .. } => {
