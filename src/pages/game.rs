@@ -1,9 +1,10 @@
-use std::{convert::identity, ops::Deref, time::Duration};
+use std::{convert::identity, ops::Deref, panic::Location, time::Duration};
 
 use leptos::{
     either::{Either, EitherOf3},
     ev,
     html::Div,
+    portal::Portal,
     prelude::*,
     spawn::spawn_local,
 };
@@ -16,6 +17,7 @@ use crate::{
     game_state::GameState,
     hooks::window_scroll::use_window_scroll,
     player::Player,
+    utils::into_either_of::{IntoEitherOf2, IntoEitherOf7},
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -41,12 +43,35 @@ impl CellsRefs {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+struct GamePageRefs {
+    pub cells: CellsRefs,
+    pub chat: NodeRef<Div>,
+    pub cell_popups: NodeRef<Div>,
+}
+
+impl GamePageRefs {
+    pub fn provide_context(&self) {
+        provide_context(*self);
+    }
+
+    pub fn use_context() -> Self {
+        expect_context::<Self>()
+    }
+}
+
 #[component]
 pub fn GamePage() -> impl IntoView {
     let is_dice_shown = RwSignal::new(false);
-    let cells_refs = CellsRefs::new();
     let game_state = GameState::new();
-    provide_context(game_state);
+    let refs = GamePageRefs {
+        cells: CellsRefs::new(),
+        chat: NodeRef::<Div>::new(),
+        cell_popups: NodeRef::<Div>::new(),
+    };
+
+    game_state.provide_context();
+    refs.provide_context();
 
     Effect::new(move |_| is_dice_shown.set(game_state.rolled_dice().is_some()));
 
@@ -60,8 +85,8 @@ pub fn GamePage() -> impl IntoView {
                     .collect_view()
             }}
             <div class="grid relative gap-0.5 min-h-full max-w-[50vw] grid-columns-[2fr_repeat(9,21fr)_2fr] grid-rows-[2fr_repeat(9,1fr)_2fr] col-[2] row-[1/6]">
-                <Rows cells_refs />
-                <Chat class="col-[2/11] row-[2/11]".to_owned() />
+                <Rows />
+                <Chat node_ref=refs.chat class="col-[2/11] row-[2/11]".to_owned() />
                 {move || {
                     game_state
                         .rolled_dice()
@@ -92,36 +117,59 @@ pub fn GamePage() -> impl IntoView {
                 game_state
                     .get_players()
                     .into_values()
-                    .map(|player| view! { <PlayerToken cells_refs player /> })
+                    .map(|player| view! { <PlayerToken player /> })
                     .collect_view()
             }}
         </div>
+        <div node_ref=refs.cell_popups />
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+enum RowSide {
+    Top,
+    Right,
+    Bottom,
+    Left,
+}
+
+impl From<usize> for RowSide {
+    #[track_caller]
+    fn from(index: usize) -> Self {
+        match index {
+            0..10 => RowSide::Top,
+            10..20 => RowSide::Right,
+            20..30 => RowSide::Bottom,
+            30..40 => RowSide::Left,
+            _ => unreachable!("There is only {CELLS_COUNT} cells, silly. ᓚ₍ ^. .^₎"),
+        }
     }
 }
 
 #[component]
-fn Rows(cells_refs: CellsRefs) -> impl IntoView {
+fn Rows() -> impl IntoView {
+    let game_page_refs = GamePageRefs::use_context();
+
     (0..40)
         .map(|i| {
-            let column = move || match i {
-                0..10 => i + 1,
-                10..20 => 11,
-                20..30 => 31 - i,
-                30..40 => 1,
-                _ => unreachable!("There is only {CELLS_COUNT} cells, silly. ᓚ₍ ^. .^₎"),
+            let row_side = i.into();
+            let column = move || match row_side {
+                RowSide::Top => i + 1,
+                RowSide::Right => 11,
+                RowSide::Bottom => 31 - i,
+                RowSide::Left => 1,
             };
 
-            let row = move || match i {
-                0..10 => 1,
-                10..20 => i - 9,
-                20..30 => 11,
-                30..40 => 41 - i,
-                _ => unreachable!("There is only {CELLS_COUNT} cells, silly. ᓚ₍ ^. .^₎"),
+            let row = move || match row_side {
+                RowSide::Top => 1,
+                RowSide::Right => i - 9,
+                RowSide::Bottom => 11,
+                RowSide::Left => 41 - i,
             };
 
             view! {
                 <Cell
-                    node_ref=cells_refs.set(i)
+                    node_ref=game_page_refs.cells.set(i)
                     // I need to wrap `i` in something, or else `{..}` is incorrectly parsed as
                     // an `i{..}` function call, which breaks "smart spread" in leptos.
                     // I cannot use `{i]`, because leptosfmt removes braces...
@@ -141,11 +189,14 @@ fn Rows(cells_refs: CellsRefs) -> impl IntoView {
 
 #[component]
 fn Cell(index: usize, node_ref: NodeRef<Div>) -> impl IntoView {
+    let game_page_refs = GamePageRefs::use_context();
     let game_state = GameState::use_context();
     let is_info_open = RwSignal::new(false);
-    let current_cell = move || game_state.get_cell(index);
+    let current_cell = game_state.get_cell(index);
+    let is_property = current_cell.try_unwrap_property().is_ok();
+    let row_side = index.into();
     let cell_bg = move || {
-        current_cell()
+        current_cell
             .try_unwrap_property()
             .ok()
             .and_then(|prop| prop.owner.get())
@@ -153,80 +204,77 @@ fn Cell(index: usize, node_ref: NodeRef<Div>) -> impl IntoView {
             .unwrap_or("#fff")
     };
     let rent_bg = move || {
-        current_cell()
+        current_cell
             .try_unwrap_property()
             .map(|prop| prop.data.group.color)
             .unwrap_or_default()
     };
 
-    let handle_click = move |_| {
-        if let Cell::Property(_) = current_cell() {
-            is_info_open.update(|is_info_open| *is_info_open = !*is_info_open)
-        }
-    };
-
-    let handle = window_event_listener(ev::click, move |event| {
-        let Some(node_ref) = node_ref.get_untracked() else {
-            return;
-        };
-
-        // TODO: When you press on cell - it automatically closes
-
-        let is_click_inside_cell = node_ref.contains(Some(&event_target::<Node>(&event)));
-
-        if !is_click_inside_cell {
-            is_info_open.set(false)
-        }
-    });
-
-    on_cleanup(move || handle.remove());
-
     // let trigger_on_click =
     //     move |_| spawn_local(async move { untrack(current_cell).trigger(&game_state).await });
+
+    // This causes "Uncaught InternalError: too much recursion"
+    // TODO: Report to Leptos
+    //
+    // view! {
+    //     <>
+    //         <div />
+    //         {()}
+    //     </>
+    // }
+
+    // This triggers "todo!()" at "tachys-0.1.0-beta/src/view/any_view.rs:344" if "style:..."
+    // applied to the component itself
+    // TODO: Report to Leptos
+    //
+    // view! {
+    //     <>
+    //         <div />
+    //         <div />
+    //     </>
+    // }
+
+    Effect::new(move |_| {
+        if is_info_open.get() && game_page_refs.cell_popups.get().is_none() {
+            tracing::warn!(
+                "Unable to open PropertyInfo modal - Portal's mount point does not exists"
+            );
+        }
+    });
 
     view! {
         <div
             node_ref=node_ref
-            class=move || tw!("relative p-1 cursor-pointer", cell_bg() == "#fff" => "text-black")
+            class=move || {
+                tw!(
+                    "relative p-1",
+                    is_property => "cursor-pointer",
+                    cell_bg() == "#fff" => "text-black",
+                )
+            }
             style:background=cell_bg
-            on:click=handle_click
+            on:click=move |_| is_info_open.update(|x| *x = !*x)
         >
-            {match current_cell() {
-                Cell::Start => "Start".into_any(),
-                Cell::Jail => "Jail".into_any(),
-                Cell::FreeParking => "FreeParking".into_any(),
-                Cell::GoToJail => "GoToJail".into_any(),
-                Cell::Tax(tax) => format!("Tax: {}", tax).into_any(),
-                Cell::Chance => "Chance".into_any(),
+            {match current_cell {
+                Cell::Start => "Start".into_either_of_7a(),
+                Cell::Jail => "Jail".into_either_of_7b(),
+                Cell::FreeParking => "FreeParking".into_either_of_7c(),
+                Cell::GoToJail => "GoToJail".into_either_of_7d(),
+                Cell::Tax(tax) => format!("Tax: {}", tax).into_either_of_7e(),
+                Cell::Chance => "Chance".into_either_of_7f(),
                 Cell::Property(prop) => {
                     view! {
                         <>
-                            <Show when=is_info_open>
-                                <PropertyInfo
-                                    property=prop
-                                    class=tw!(
-                                        "absolute z-10",
-                                        match index {
-                                            0..10 => "left-1/2 top-full -translate-x-1/2 translate-y-2",
-                                            10..20 => "top-1/2 right-full -translate-x-2 -translate-y-1/2",
-                                            20..30 => "left-1/2 bottom-full -translate-x-1/2 -translate-y-2",
-                                            30..40 => "top-1/2 left-full translate-x-2 -translate-y-1/2",
-                                            _ => unreachable!(),
-                                        }
-                                    )
-                                />
-                            </Show>
                             {format!("Property: {}", prop.data.title)}
                             <div
                                 style:background=rent_bg
                                 class=tw!(
                                     "absolute leading-7 text-center text-white",
-                                    match index {
-                                        0..10 => "left-0 -top-7 w-full h-7",
-                                        10..20 => "top-0 -right-7 h-full w-7 [writing-mode:vertical-lr]",
-                                        20..30 => "left-0 -bottom-7 w-full h-7",
-                                        30..40 => "top-0 -left-7 h-full w-7 [writing-mode:vertical-lr] rotate-180",
-                                        _ => unreachable!(),
+                                    match row_side {
+                                        RowSide::Top => "left-0 -top-7 w-full h-7",
+                                        RowSide::Right => "top-0 -right-7 h-full w-7 [writing-mode:vertical-lr]",
+                                        RowSide::Bottom => "left-0 -bottom-7 w-full h-7",
+                                        RowSide::Left => "top-0 -left-7 h-full w-7 [writing-mode:vertical-lr] rotate-180",
                                     }
                                 )
                             >
@@ -248,8 +296,21 @@ fn Cell(index: usize, node_ref: NodeRef<Div>) -> impl IntoView {
                             </div>
                         </>
                     }
-                        .into_any()
+                        .into_either_of_7g()
                 }
+            }}
+            {move || {
+                current_cell
+                    .try_unwrap_property()
+                    .ok()
+                    .zip(game_page_refs.cell_popups.get())
+                    .map(|(property, mount)| {
+                        view! {
+                            <Portal mount>
+                                <PropertyInfo cell_node_ref=node_ref is_info_open property />
+                            </Portal>
+                        }
+                    })
             }}
         </div>
     }
@@ -257,182 +318,246 @@ fn Cell(index: usize, node_ref: NodeRef<Div>) -> impl IntoView {
 
 #[component]
 pub fn PropertyInfo(
-    #[prop(optional)] node_ref: NodeRef<Div>,
+    cell_node_ref: NodeRef<Div>,
+    is_info_open: RwSignal<bool>,
     property: Property,
-    class: String,
 ) -> impl IntoView {
+    let game_page_refs = GamePageRefs::use_context();
+    let node_ref = NodeRef::<Div>::new();
+    let (scroll_x, scroll_y) = use_window_scroll();
+    let coordinates = RwSignal::new(None::<(f64, f64)>);
+
+    let handle = window_event_listener(ev::click, move |event| {
+        // It would be cool if "NodeRef" implemented Fn family of traits.
+        // TODO: PR into Leptos
+        let Some((cell_node_ref, node_ref)) = cell_node_ref.get().zip(node_ref.get()) else {
+            return;
+        };
+
+        let target = event_target::<Node>(&event);
+        let is_click_inside_cell =
+            cell_node_ref.contains(Some(&target)) || node_ref.contains(Some(&target));
+
+        if !is_click_inside_cell {
+            is_info_open.set(false)
+        }
+    });
+
+    Effect::new(move |_| {
+        let Some(((cell_node_ref, chat_ref), node_ref)) = cell_node_ref
+            .get()
+            .zip(game_page_refs.chat.get())
+            .zip(node_ref.get())
+        else {
+            return;
+        };
+
+        let cell_rect = cell_node_ref.get_bounding_client_rect();
+        let chat_rect = chat_ref.get_bounding_client_rect();
+        let node_rect = node_ref.get_bounding_client_rect();
+
+        let cell_x_center = scroll_x() + cell_rect.x() + cell_rect.width() / 2f64;
+        let cell_y_center = scroll_y() + cell_rect.y() + cell_rect.height() / 2f64;
+        let padding = 8.;
+
+        coordinates.set(Some((
+            cell_x_center.clamp(
+                scroll_x() + chat_rect.left() + (node_rect.width() / 2.) + padding,
+                scroll_x() + chat_rect.right() - (node_rect.width() / 2.) - padding,
+            ),
+            cell_y_center.clamp(
+                scroll_y() + chat_rect.top() + (node_rect.height() / 2.) + padding,
+                scroll_y() + chat_rect.bottom() - (node_rect.height() / 2.) - padding,
+            ),
+        )));
+    });
+
+    on_cleanup(move || handle.remove());
+
     view! {
-        <div node_ref=node_ref class=tw!("rounded-md overflow-hidden w-52", class)>
-            <div class="py-3 px-4 text-white" style:background=property.data.group.color>
-                <div class="text-lg font-bold">{property.data.title}</div>
-                <div class="-mt-0.5 text-xs font-bold opacity-75">{property.data.group.title}</div>
+        <Show when=is_info_open>
+            <div
+                node_ref=node_ref
+                class="overflow-hidden absolute z-10 w-52 rounded-md -translate-x-1/2 -translate-y-1/2"
+                style:left=move || coordinates().map(|(x, _)| format!("{x}px")).unwrap_or_default()
+                style:top=move || coordinates().map(|(_, y)| format!("{y}px")).unwrap_or_default()
+            >
+                // When I do this - hella long error is being reported without any useful info.
+                // TODO: PR fix into Leptos
+                // style=(move || "", "")
+                <div class="py-3 px-4 text-white" style:background=property.data.group.color>
+                    <div class="text-lg font-bold">{property.data.title}</div>
+                    <div class="-mt-0.5 text-xs font-bold opacity-75">
+                        {property.data.group.title}
+                    </div>
+                </div>
+                <div class="flex flex-col gap-2.5 py-3 px-4 text-gray-500 bg-white">
+                    <div class="leading-[14px]">
+                        {move || match property.ty {
+                            PropertyType::Simple { .. } => "Build agencies to make rent higher.",
+                            PropertyType::Transport { .. } => {
+                                "Rent depends on amount of autos you have."
+                            }
+                            PropertyType::Utility { .. } => {
+                                "Rent depends on the dice sum and amount of developers you have."
+                            }
+                        }}
+                    </div>
+                    <div>
+                        {move || match property.ty {
+                            PropertyType::Simple { levels, .. } => {
+                                EitherOf3::A(
+                                    view! {
+                                        <>
+                                            <div class="flex justify-between">
+                                                <span>"Base rent"</span>
+                                                <span>
+                                                    {move || levels[0].to_string()}
+                                                    <span class="opacity-70">"k"</span>
+                                                </span>
+                                            </div>
+                                            <div class="flex justify-between">
+                                                <span>"★"</span>
+                                                <span>
+                                                    {move || levels[1].to_string()}
+                                                    <span class="opacity-70">"k"</span>
+                                                </span>
+                                            </div>
+                                            <div class="flex justify-between">
+                                                <span>"★ ★"</span>
+                                                <span>
+                                                    {move || levels[2].to_string()}
+                                                    <span class="opacity-70">"k"</span>
+                                                </span>
+                                            </div>
+                                            <div class="flex justify-between">
+                                                <span>"★ ★ ★"</span>
+                                                <span>
+                                                    {move || levels[3].to_string()}
+                                                    <span class="opacity-70">"k"</span>
+                                                </span>
+                                            </div>
+                                            <div class="flex justify-between">
+                                                <span>"★ ★ ★ ★"</span>
+                                                <span>
+                                                    {move || levels[4].to_string()}
+                                                    <span class="opacity-70">"k"</span>
+                                                </span>
+                                            </div>
+                                            <div class="flex justify-between">
+                                                <span class="text-yellow-500 scale-150">"★"</span>
+                                                <span>
+                                                    {move || levels[5].to_string()}
+                                                    <span class="opacity-70">"k"</span>
+                                                </span>
+                                            </div>
+                                        </>
+                                    },
+                                )
+                            }
+                            PropertyType::Transport { levels } => {
+                                EitherOf3::B(
+                                    view! {
+                                        <>
+                                            <div class="flex justify-between">
+                                                <span>"1 field"</span>
+                                                <span>
+                                                    {move || levels[0].to_string()}
+                                                    <span class="opacity-70">"k"</span>
+                                                </span>
+                                            </div>
+                                            <div class="flex justify-between">
+                                                <span>"2 fields"</span>
+                                                <span>
+                                                    {move || levels[1].to_string()}
+                                                    <span class="opacity-70">"k"</span>
+                                                </span>
+                                            </div>
+                                            <div class="flex justify-between">
+                                                <span>"3 fields"</span>
+                                                <span>
+                                                    {move || levels[2].to_string()}
+                                                    <span class="opacity-70">"k"</span>
+                                                </span>
+                                            </div>
+                                            <div class="flex justify-between">
+                                                <span>"4 fields"</span>
+                                                <span>
+                                                    {move || levels[3].to_string()}
+                                                    <span class="opacity-70">"k"</span>
+                                                </span>
+                                            </div>
+                                        </>
+                                    },
+                                )
+                            }
+                            PropertyType::Utility { levels } => {
+                                EitherOf3::C(
+                                    view! {
+                                        <>
+                                            <div class="flex justify-between">
+                                                <span>"1 field"</span>
+                                                <span>
+                                                    <span class="opacity-70">"x"</span>
+                                                    {move || levels[0].to_string()}
+                                                </span>
+                                            </div>
+                                            <div class="flex justify-between">
+                                                <span>"2 fields"</span>
+                                                <span>
+                                                    <span class="opacity-70">"x"</span>
+                                                    {move || levels[1].to_string()}
+                                                </span>
+                                            </div>
+                                        </>
+                                    },
+                                )
+                            }
+                        }}
+                    </div>
+                    <div>
+                        <div class="flex justify-between">
+                            <span>"Field's price"</span>
+                            <span>
+                                {move || property.data.price.to_string()}
+                                <span class="pl-0.5 opacity-70">"k"</span>
+                            </span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>"Field's mortgage"</span>
+                            <span>
+                                {move || property.reward_for_mortgaging().to_string()}
+                                <span class="pl-0.5 opacity-70">"k"</span>
+                            </span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>"Field's recovery"</span>
+                            <span>
+                                {move || property.recovery_price().to_string()}
+                                <span class="pl-0.5 opacity-70">"k"</span>
+                            </span>
+                        </div>
+                        {move || {
+                            if let PropertyType::Simple { level_price, .. } = property.ty {
+                                Either::Left(
+                                    view! {
+                                        <div class="flex justify-between">
+                                            <span>"Agency price"</span>
+                                            <span>
+                                                {move || level_price.to_string()}
+                                                <span class="pl-0.5 opacity-70">"k"</span>
+                                            </span>
+                                        </div>
+                                    },
+                                )
+                            } else {
+                                Either::Right(())
+                            }
+                        }}
+                    </div>
+                </div>
             </div>
-            <div class="flex flex-col gap-2.5 py-3 px-4 text-gray-500 bg-white">
-                <div class="leading-[14px]">
-                    {move || match property.ty {
-                        PropertyType::Simple { .. } => "Build agencies to make rent higher.",
-                        PropertyType::Transport { .. } => {
-                            "Rent depends on amount of autos you have."
-                        }
-                        PropertyType::Utility { .. } => {
-                            "Rent depends on the dice sum and amount of developers you have."
-                        }
-                    }}
-                </div>
-                <div>
-                    {move || match property.ty {
-                        PropertyType::Simple { levels, .. } => {
-                            EitherOf3::A(
-                                view! {
-                                    <>
-                                        <div class="flex justify-between">
-                                            <span>"Base rent"</span>
-                                            <span>
-                                                {move || levels[0].to_string()}
-                                                <span class="opacity-70">"k"</span>
-                                            </span>
-                                        </div>
-                                        <div class="flex justify-between">
-                                            <span>"★"</span>
-                                            <span>
-                                                {move || levels[1].to_string()}
-                                                <span class="opacity-70">"k"</span>
-                                            </span>
-                                        </div>
-                                        <div class="flex justify-between">
-                                            <span>"★ ★"</span>
-                                            <span>
-                                                {move || levels[2].to_string()}
-                                                <span class="opacity-70">"k"</span>
-                                            </span>
-                                        </div>
-                                        <div class="flex justify-between">
-                                            <span>"★ ★ ★"</span>
-                                            <span>
-                                                {move || levels[3].to_string()}
-                                                <span class="opacity-70">"k"</span>
-                                            </span>
-                                        </div>
-                                        <div class="flex justify-between">
-                                            <span>"★ ★ ★ ★"</span>
-                                            <span>
-                                                {move || levels[4].to_string()}
-                                                <span class="opacity-70">"k"</span>
-                                            </span>
-                                        </div>
-                                        <div class="flex justify-between">
-                                            <span class="text-yellow-500 scale-150">"★"</span>
-                                            <span>
-                                                {move || levels[5].to_string()}
-                                                <span class="opacity-70">"k"</span>
-                                            </span>
-                                        </div>
-                                    </>
-                                },
-                            )
-                        }
-                        PropertyType::Transport { levels } => {
-                            EitherOf3::B(
-                                view! {
-                                    <>
-                                        <div class="flex justify-between">
-                                            <span>"1 field"</span>
-                                            <span>
-                                                {move || levels[0].to_string()}
-                                                <span class="opacity-70">"k"</span>
-                                            </span>
-                                        </div>
-                                        <div class="flex justify-between">
-                                            <span>"2 fields"</span>
-                                            <span>
-                                                {move || levels[1].to_string()}
-                                                <span class="opacity-70">"k"</span>
-                                            </span>
-                                        </div>
-                                        <div class="flex justify-between">
-                                            <span>"3 fields"</span>
-                                            <span>
-                                                {move || levels[2].to_string()}
-                                                <span class="opacity-70">"k"</span>
-                                            </span>
-                                        </div>
-                                        <div class="flex justify-between">
-                                            <span>"4 fields"</span>
-                                            <span>
-                                                {move || levels[3].to_string()}
-                                                <span class="opacity-70">"k"</span>
-                                            </span>
-                                        </div>
-                                    </>
-                                },
-                            )
-                        }
-                        PropertyType::Utility { levels } => {
-                            EitherOf3::C(
-                                view! {
-                                    <>
-                                        <div class="flex justify-between">
-                                            <span>"1 field"</span>
-                                            <span>
-                                                <span class="opacity-70">"x"</span>
-                                                {move || levels[0].to_string()}
-                                            </span>
-                                        </div>
-                                        <div class="flex justify-between">
-                                            <span>"2 fields"</span>
-                                            <span>
-                                                <span class="opacity-70">"x"</span>
-                                                {move || levels[1].to_string()}
-                                            </span>
-                                        </div>
-                                    </>
-                                },
-                            )
-                        }
-                    }}
-                </div>
-                <div>
-                    <div class="flex justify-between">
-                        <span>"Field's price"</span>
-                        <span>
-                            {move || property.data.price.to_string()}
-                            <span class="pl-0.5 opacity-70">"k"</span>
-                        </span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span>"Field's mortgage"</span>
-                        <span>
-                            {move || property.reward_for_mortgaging().to_string()}
-                            <span class="pl-0.5 opacity-70">"k"</span>
-                        </span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span>"Field's recovery"</span>
-                        <span>
-                            {move || property.recovery_price().to_string()}
-                            <span class="pl-0.5 opacity-70">"k"</span>
-                        </span>
-                    </div>
-                    {move || {
-                        if let PropertyType::Simple { level_price, .. } = property.ty {
-                            Either::Left(
-                                view! {
-                                    <div class="flex justify-between">
-                                        <span>"Agency price"</span>
-                                        <span>
-                                            {move || level_price.to_string()}
-                                            <span class="pl-0.5 opacity-70">"k"</span>
-                                        </span>
-                                    </div>
-                                },
-                            )
-                        } else {
-                            Either::Right(())
-                        }
-                    }}
-                </div>
-            </div>
-        </div>
+        </Show>
     }
 }
 
@@ -477,7 +602,8 @@ pub fn PlayerCard(player: Player, #[prop(into, optional)] class: Signal<String>)
 }
 
 #[component]
-fn PlayerToken(cells_refs: CellsRefs, player: Player) -> impl IntoView {
+fn PlayerToken(player: Player) -> impl IntoView {
+    let game_page_refs = GamePageRefs::use_context();
     let width = 32f64;
     let height = 32f64;
     let gap = 6f64;
@@ -492,7 +618,7 @@ fn PlayerToken(cells_refs: CellsRefs, player: Player) -> impl IntoView {
             .iter()
             .position(|p| p == &player)
             .expect("game_state.get_players_by_cell() should contain current player also");
-        let current_cell = cells_refs.get(player.position());
+        let current_cell = game_page_refs.cells.get(player.position());
         let cell_rect = current_cell.get_bounding_client_rect();
 
         let cell_x_center = scroll_x() + cell_rect.x() + cell_rect.width() / 2f64;
@@ -527,7 +653,10 @@ fn PlayerToken(cells_refs: CellsRefs, player: Player) -> impl IntoView {
 }
 
 #[component]
-pub fn Chat(#[prop(into, optional)] class: Signal<String>) -> impl IntoView {
+pub fn Chat(
+    node_ref: NodeRef<Div>,
+    #[prop(into, optional)] class: Signal<String>,
+) -> impl IntoView {
     let game_state = GameState::use_context();
     let roll_dice_action = Action::new_local(move |()| async move { game_state.roll_dice().await });
     let roll_dice_pending = roll_dice_action.pending();
@@ -542,6 +671,7 @@ pub fn Chat(#[prop(into, optional)] class: Signal<String>) -> impl IntoView {
 
     view! {
         <div
+            node_ref=node_ref
             class=move || {
                 tw!("relative bg-cyan-700", !roll_dice_pending() => "cursor-pointer", class())
             }

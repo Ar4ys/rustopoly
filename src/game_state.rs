@@ -44,6 +44,10 @@ impl GameState {
         }
     }
 
+    pub fn provide_context(&self) {
+        provide_context(*self);
+    }
+
     pub fn use_context() -> Self {
         expect_context::<Self>()
     }
@@ -82,6 +86,7 @@ impl GameState {
     }
 
     // TODO: Better name
+    // TODO: Create "leptos_untrack" attribute-macro that will use "SpecialNonReactiveZone" to disable tracking
     pub async fn roll_dice(&self) {
         let dice1 = rand::get_usize(1..=6);
         let dice2 = rand::get_usize(1..=6);
