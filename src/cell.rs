@@ -92,9 +92,8 @@ impl Cell {
 pub struct Property {
     pub ty: PropertyType,
     pub data: PropertyData,
-    // TODO: Make private
-    pub owner: RwSignal<Option<Player>>,
-    mortgaged_until: RwSignal<Option<usize>>,
+    owner: RwSignal<Option<Player>>,
+    mortgaged_for: RwSignal<Option<usize>>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -133,7 +132,7 @@ impl Property {
             ty,
             data,
             owner: RwSignal::new(None),
-            mortgaged_until: RwSignal::new(None),
+            mortgaged_for: RwSignal::new(None),
         }
     }
 
@@ -143,6 +142,14 @@ impl Property {
 
     pub fn recovery_price(&self) -> Money {
         self.data.price * 6 / 10
+    }
+
+    pub fn owner(&self) -> Option<Player> {
+        self.owner.get()
+    }
+
+    pub fn mortgaged_for(&self) -> Option<usize> {
+        self.mortgaged_for.get()
     }
 
     pub fn rent(&self, game_state: &GameState) -> Option<Money> {
@@ -196,6 +203,77 @@ impl Property {
             player.withdraw(self.data.price);
             self.owner.set(Some(*player));
         }
+    }
+
+    pub fn mortgage(&self) {
+        let Some(owner) = self.owner.get_untracked() else {
+            tracing::warn!("Tried to mortgage property without owner.");
+            return;
+        };
+
+        self.mortgaged_for.set(Some(15));
+        owner.deposit(self.reward_for_mortgaging());
+    }
+
+    pub fn recover(&self) {
+        let Some(owner) = self.owner.get_untracked() else {
+            tracing::warn!("Tried to recover property without owner.");
+            return;
+        };
+
+        self.mortgaged_for.set(None);
+        owner.withdraw(self.recovery_price());
+    }
+
+    pub fn mortgage_tick(&self) {
+        let Some(mut mortgaged_for) = self.mortgaged_for.get_untracked() else {
+            return;
+        };
+
+        mortgaged_for = mortgaged_for.saturating_sub(1);
+
+        if mortgaged_for == 0 {
+            self.owner.set(None);
+            self.mortgaged_for.set(None)
+        } else {
+            self.mortgaged_for.set(Some(mortgaged_for))
+        }
+    }
+
+    pub fn build_agency(&self) {
+        let Some(owner) = self.owner.get_untracked() else {
+            tracing::warn!("Tried to build agency on property without owner.");
+            return;
+        };
+
+        let PropertyType::Simple {
+            level_price, level, ..
+        } = self.ty
+        else {
+            tracing::warn!("Tried to build agency on property that is not PropertyType::Simple.");
+            return;
+        };
+
+        owner.withdraw(level_price);
+        level.update(|x| *x += 1);
+    }
+
+    pub fn sell_agency(&self) {
+        let Some(owner) = self.owner.get_untracked() else {
+            tracing::warn!("Tried to sell agency on property without owner.");
+            return;
+        };
+
+        let PropertyType::Simple {
+            level_price, level, ..
+        } = self.ty
+        else {
+            tracing::warn!("Tried to sell agency on property that is not PropertyType::Simple.");
+            return;
+        };
+
+        owner.deposit(level_price);
+        level.update(|x| *x -= 1);
     }
 }
 

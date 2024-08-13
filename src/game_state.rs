@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use leptos::prelude::*;
 
 use crate::{
-    cell::{Cell, PropertyGroup, CELLS_COUNT},
+    cell::{Cell, Property, PropertyGroup, CELLS_COUNT},
     components::in_game_modal::InGameModalState,
     game_data::init_cells,
     player::{Player, PlayerColor, PlayerId},
@@ -64,6 +64,10 @@ impl GameState {
         self.cells[index]
     }
 
+    pub fn current_step(&self) -> usize {
+        self.current_step.get()
+    }
+
     pub fn get_players(&self) -> HashMap<PlayerId, Player> {
         self.players.get()
     }
@@ -111,6 +115,13 @@ impl GameState {
     pub fn finish_step(&self) {
         let is_round_ended = untrack(|| self.next_player());
         self.current_step.update(|step| *step += 1);
+
+        for cell in self.cells.iter() {
+            if let Cell::Property(property) = cell {
+                property.mortgage_tick();
+            };
+        }
+
         if is_round_ended {
             self.current_round.update(|round| *round += 1);
         }
@@ -157,20 +168,24 @@ impl GameState {
         self.dice_transition_end.trigger();
     }
 
+    pub fn get_properties_by_group(&self, property_group: &PropertyGroup) -> Vec<Property> {
+        self.cells
+            .iter()
+            .filter_map(|cell| cell.try_unwrap_property().ok())
+            .filter(|prop| prop.data.group == *property_group)
+            .collect()
+    }
+
     pub fn has_from_group(
         &self,
         player: &Player,
         property_group: &PropertyGroup,
     ) -> (usize, usize) {
-        let prop_groups_iter = self
-            .cells
-            .iter()
-            .filter_map(|cell| cell.try_unwrap_property().ok())
-            .filter(|prop| prop.data.group == *property_group);
+        let prop_groups_iter = self.get_properties_by_group(property_group).into_iter();
 
         let total = prop_groups_iter.clone().count();
         let owns = prop_groups_iter
-            .filter(|prop| prop.owner.get().is_some_and(|owner| owner == *player))
+            .filter(|prop| prop.owner().is_some_and(|owner| owner == *player))
             .count();
 
         (owns, total)

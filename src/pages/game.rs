@@ -1,4 +1,4 @@
-use std::{convert::identity, ops::Deref, panic::Location, time::Duration};
+use std::{convert::identity, time::Duration};
 
 use leptos::{
     either::{Either, EitherOf3},
@@ -6,10 +6,9 @@ use leptos::{
     html::Div,
     portal::Portal,
     prelude::*,
-    spawn::spawn_local,
 };
 use tailwind_merge::tw;
-use web_sys::{HtmlDivElement, HtmlElement, Node};
+use web_sys::{HtmlDivElement, Node};
 
 use crate::{
     cell::{Cell, Property, PropertyType, CELLS_COUNT},
@@ -17,7 +16,7 @@ use crate::{
     game_state::GameState,
     hooks::window_scroll::use_window_scroll,
     player::Player,
-    utils::into_either_of::{IntoEitherOf2, IntoEitherOf7},
+    utils::into_either_of::IntoEitherOf7,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -199,7 +198,7 @@ fn Cell(index: usize, node_ref: NodeRef<Div>) -> impl IntoView {
         current_cell
             .try_unwrap_property()
             .ok()
-            .and_then(|prop| prop.owner.get())
+            .and_then(|prop| prop.owner())
             .map(|owner| owner.color.get_cell_gradient())
             .unwrap_or("#fff")
     };
@@ -281,7 +280,7 @@ fn Cell(index: usize, node_ref: NodeRef<Div>) -> impl IntoView {
                                 {move || {
                                     if let (PropertyType::Utility { levels }, Some(owner)) = (
                                         prop.ty,
-                                        prop.owner.get(),
+                                        prop.owner(),
                                     ) {
                                         let (owns, _) = game_state
                                             .has_from_group(&owner, &prop.data.group);
@@ -322,6 +321,7 @@ pub fn PropertyInfo(
     is_info_open: RwSignal<bool>,
     property: Property,
 ) -> impl IntoView {
+    let game_state = GameState::use_context();
     let game_page_refs = GamePageRefs::use_context();
     let node_ref = NodeRef::<Div>::new();
     let (scroll_x, scroll_y) = use_window_scroll();
@@ -403,6 +403,138 @@ pub fn PropertyInfo(
                             }
                         }}
                     </div>
+                    <Show
+                        when=move || {
+                            game_state.self_player == game_state.current_player()
+                                && property.owner() == Some(game_state.self_player)
+                        }
+                        fallback=move || {
+                            property
+                                .owner()
+                                .is_none()
+                                .then(|| {
+                                    view! {
+                                        <button
+                                            class="p-2 rounded border-2"
+                                            on:click=move |_| property.buy(&game_state.self_player)
+                                        >
+                                            "[Debug] Buy"
+                                        </button>
+                                    }
+                                })
+                        }
+                    >
+                        <div class="flex gap-3">
+                            {match property.ty {
+                                PropertyType::Transport { .. } | PropertyType::Utility { .. } => {
+                                    if property.mortgaged_for().is_some() {
+                                        view! {
+                                            <button
+                                                class="p-2 rounded border-2"
+                                                on:click=move |_| property.recover()
+                                            >
+                                                "Recover"
+                                            </button>
+                                        }
+                                            .into_any()
+                                    } else {
+                                        view! {
+                                            <button
+                                                class="p-2 rounded border-2"
+                                                on:click=move |_| property.mortgage()
+                                            >
+                                                "Mortgage"
+                                            </button>
+                                        }
+                                            .into_any()
+                                    }
+                                }
+                                PropertyType::Simple { levels, level, .. } => {
+                                    if property.mortgaged_for().is_some() {
+                                        view! {
+                                            <button
+                                                class="p-2 rounded border-2"
+                                                on:click=move |_| property.recover()
+                                            >
+                                                "Recover"
+                                            </button>
+                                        }
+                                            .into_any()
+                                    } else {
+                                        (move || {
+                                            let has_monopoly = game_state
+                                                .has_monopoly_on(
+                                                    &game_state.self_player,
+                                                    &property.data.group,
+                                                );
+                                            let other_props = game_state
+                                                .get_properties_by_group(&property.data.group)
+                                                .into_iter()
+                                                .filter(|prop| {
+                                                    prop.owner()
+                                                        .is_some_and(|owner| owner == game_state.self_player)
+                                                })
+                                                .filter_map(|prop| {
+                                                    if let PropertyType::Simple { level, .. } = prop.ty {
+                                                        Some((level, prop))
+                                                    } else {
+                                                        None
+                                                    }
+                                                })
+                                                .collect::<Vec<_>>();
+                                            view! {
+                                                <>
+                                                    <Show when={
+                                                        let other_props = other_props.clone();
+                                                        move || {
+                                                            has_monopoly && level() < levels.len() - 1
+                                                                && !other_props
+                                                                    .iter()
+                                                                    .any(|(x, p)| x() < level() || p.mortgaged_for().is_some())
+                                                        }
+                                                    }>
+                                                        <button
+                                                            class="p-2 rounded border-2"
+                                                            on:click=move |_| property.build_agency()
+                                                        >
+                                                            "Build agency"
+                                                        </button>
+                                                    </Show>
+
+                                                    {if has_monopoly && level() > 0
+                                                        && !other_props.iter().any(|(x, _)| x() > level())
+                                                    {
+                                                        view! {
+                                                            <button
+                                                                class="p-2 rounded border-2"
+                                                                on:click=move |_| property.sell_agency()
+                                                            >
+                                                                "Sell agency"
+                                                            </button>
+                                                        }
+                                                            .into_any()
+                                                    } else if other_props.iter().all(|(x, _)| x() == 0) {
+                                                        view! {
+                                                            <button
+                                                                class="p-2 rounded border-2"
+                                                                on:click=move |_| property.mortgage()
+                                                            >
+                                                                "Mortgage"
+                                                            </button>
+                                                        }
+                                                            .into_any()
+                                                    } else {
+                                                        ().into_any()
+                                                    }}
+                                                </>
+                                            }
+                                        })
+                                            .into_any()
+                                    }
+                                }
+                            }}
+                        </div>
+                    </Show>
                     <div>
                         {move || match property.ty {
                             PropertyType::Simple { levels, .. } => {
