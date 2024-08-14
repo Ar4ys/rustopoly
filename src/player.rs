@@ -1,4 +1,5 @@
 use leptos::prelude::*;
+use snafu::prelude::*;
 
 use crate::cell::{Money, CELLS_COUNT};
 
@@ -61,6 +62,16 @@ pub struct Player {
     connection_status: RwSignal<ConnectionStatus>,
 }
 
+#[derive(Debug, Snafu)]
+#[snafu(display(
+    "Player \"{player_name}\" (id: {player_id}) does not have enough money ({amount}$)"
+))]
+pub struct NotEnoughMoneyError {
+    pub player_name: String,
+    pub player_id: PlayerId,
+    pub amount: Money,
+}
+
 impl Player {
     pub fn new(id: PlayerId, name: &str, color: PlayerColor) -> Self {
         Self {
@@ -105,8 +116,19 @@ impl Player {
         self.balance.update(|balance| *balance += amount)
     }
 
-    pub fn withdraw(&self, amount: Money) {
-        self.balance.update(|balance| *balance -= amount)
+    pub fn withdraw(&self, amount: Money) -> Result<(), NotEnoughMoneyError> {
+        ensure!(
+            self.balance.get_untracked() >= amount,
+            NotEnoughMoneySnafu {
+                player_id: self.id,
+                player_name: self.name.get_value(),
+                amount
+            }
+        );
+
+        self.balance.update(|balance| *balance -= amount);
+
+        Ok(())
     }
 
     pub fn is_in_jail(&self) -> bool {

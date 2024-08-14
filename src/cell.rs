@@ -5,9 +5,13 @@ use derive_more::derive::{
     RemAssign, Sub, SubAssign, TryUnwrap,
 };
 use leptos::prelude::*;
+use snafu::prelude::*;
 
 use crate::{
-    components::in_game_modal::ModalResponse, game_state::GameState, player::Player, utils::rand,
+    components::in_game_modal::ModalResponse,
+    game_state::GameState,
+    player::{NotEnoughMoneyError, Player, PlayerId},
+    utils::rand,
 };
 
 pub const CELLS_COUNT: usize = 40;
@@ -39,7 +43,29 @@ impl Cell {
                             "Pay moneh",
                         )
                         .await;
-                    prop.pay_rent(&current_player, game_state)
+
+                    if let Err(error) = prop.pay_rent(&current_player, game_state) {
+                        match error {
+                            OwnedPropertyError::NoOwner { source } => {
+                                tracing::warn!(
+                                    "Tried to pay rent to property \"{}\" without owner.",
+                                    source.property_title
+                                );
+                                // TODO: Add modal for user
+                            }
+                            OwnedPropertyError::NotEnoughMoney { source } => {
+                                // Ideally, we should never reach here, because UI should force player to surrender,
+                                // if they don't have enough money.
+                                tracing::error!(
+                                    "Player \"{}\" (id: {}) does not have enough money ({}$) to pay rent for property. Surrendering...",
+                                    source.player_name,
+                                    source.player_id,
+                                    source.amount,
+                                );
+                                // TODO: Trigger current_player.surrender()
+                            }
+                        }
+                    };
                 } else {
                     let response = game_state
                         .in_game_modal_state
@@ -54,7 +80,30 @@ impl Cell {
                         .await;
 
                     if let ModalResponse::Ok = response {
-                        prop.buy(&current_player);
+                        if let Err(error) = prop.buy(&current_player) {
+                            match error {
+                                FreePropertyError::AlreadyOwned { source } => {
+                                    tracing::warn!(
+                                        "Tried to buy property \"{}\", that already has owner \"{}\" (id: {}).",
+                                        source.property_title,
+                                        source.owner_name,
+                                        source.owner_id,
+                                    );
+                                    // TODO: Show user a modal
+                                }
+                                FreePropertyError::NotEnoughMoney { source } => {
+                                    // Ideally, we should never reach here, because UI should stop player from buying,
+                                    // if they don't have enough money.
+                                    tracing::error!(
+                                        "Player \"{}\" (id: {}) does not have enough money ({}$) to buy property.",
+                                        source.player_name,
+                                        source.player_id,
+                                        source.amount,
+                                    );
+                                    // TODO: Show user a modal
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -74,7 +123,19 @@ impl Cell {
                     )
                     .await;
 
-                current_player.deposit(you_get);
+                if you_get.is_positive() {
+                    current_player.deposit(you_get);
+                } else if let Err(error) = current_player.withdraw(-you_get) {
+                    // Ideally, we should never reach here, because UI should force player to surrender,
+                    // if they don't have enough money.
+                    tracing::error!(
+                        "Player \"{}\" (id: {}) does not have enough money ({}$) to pay for chance. Surrendering...",
+                        error.player_name,
+                        error.player_id,
+                        error.amount,
+                    );
+                    // TODO: Trigger current_player.surrender()
+                }
             }
 
             Cell::Tax(amount) => {
@@ -82,7 +143,18 @@ impl Cell {
                     .in_game_modal_state
                     .one_button_async(&format!("You owe me: {amount}$"), "Pay moneh")
                     .await;
-                current_player.withdraw(*amount);
+
+                if let Err(error) = current_player.withdraw(*amount) {
+                    // Ideally, we should never reach here, because UI should force player to surrender,
+                    // if they don't have enough money.
+                    tracing::error!(
+                        "Player \"{}\" (id: {}) does not have enough money ({}$) to pay for chance. Surrendering...",
+                        error.player_name,
+                        error.player_id,
+                        error.amount,
+                    );
+                    // TODO: Trigger current_player.surrender()
+                }
             }
         }
     }
@@ -124,6 +196,48 @@ pub enum PropertyType {
 pub struct PropertyGroup {
     pub title: &'static str,
     pub color: &'static str,
+}
+
+#[derive(Debug, Snafu)]
+pub enum OwnedPropertyError {
+    #[snafu(transparent)]
+    NoOwner { source: NoOwnerError },
+    #[snafu(transparent)]
+    NotEnoughMoney { source: NotEnoughMoneyError },
+}
+
+#[derive(Debug, Snafu)]
+pub enum FreePropertyError {
+    #[snafu(transparent)]
+    AlreadyOwned { source: HasOwnerError },
+    #[snafu(transparent)]
+    NotEnoughMoney { source: NotEnoughMoneyError },
+}
+
+#[derive(Debug, Snafu)]
+pub enum AgencyPropertyError {
+    #[snafu(transparent)]
+    NoOwner { source: NoOwnerError },
+    #[snafu(transparent)]
+    NotEnoughMoney { source: NotEnoughMoneyError },
+    #[snafu(display("Property \"{property_title}\" is not a PropertyType::Simple"))]
+    NotASimpleProperty { property_title: &'static str },
+}
+
+#[derive(Debug, Snafu)]
+#[snafu(display("Property \"{property_title}\" does not have owner"))]
+pub struct NoOwnerError {
+    pub property_title: &'static str,
+}
+
+#[derive(Debug, Snafu)]
+#[snafu(display(
+    "Property \"{property_title}\" already has owner \"{owner_name}\" (id: {owner_id})"
+))]
+pub struct HasOwnerError {
+    pub property_title: &'static str,
+    pub owner_name: String,
+    pub owner_id: PlayerId,
 }
 
 impl Property {
@@ -186,46 +300,69 @@ impl Property {
         })
     }
 
-    pub fn pay_rent(&self, player: &Player, game_state: &GameState) {
-        if let Some((owner, rent)) = self
+    pub fn pay_rent(
+        &self,
+        player: &Player,
+        game_state: &GameState,
+    ) -> Result<(), OwnedPropertyError> {
+        let Some((owner, rent)) = self
             .owner
             .get_untracked()
             .zip(untrack(|| self.rent(game_state)))
-        {
-            player.withdraw(rent);
-            owner.deposit(rent);
-        } else {
-            tracing::warn!("Tried to pay rent to property without owner.")
-        }
+        else {
+            return NoOwnerSnafu {
+                property_title: self.data.title,
+            }
+            .fail()
+            .map_err(Into::into);
+        };
+
+        player.withdraw(rent)?;
+        owner.deposit(rent);
+        Ok(())
     }
 
-    pub fn buy(&self, player: &Player) {
-        if self.owner.get_untracked().is_some() {
-            tracing::warn!("Tried to buy property with owner.")
-        } else {
-            player.withdraw(self.data.price);
-            self.owner.set(Some(*player));
-        }
+    pub fn buy(&self, player: &Player) -> Result<(), FreePropertyError> {
+        if let Some(owner) = self.owner.get_untracked() {
+            return HasOwnerSnafu {
+                property_title: self.data.title,
+                owner_id: owner.id,
+                owner_name: owner.name.get_value(),
+            }
+            .fail()
+            .map_err(Into::into);
+        };
+
+        player.withdraw(self.data.price)?;
+        self.owner.set(Some(*player));
+        Ok(())
     }
 
-    pub fn mortgage(&self) {
+    pub fn mortgage(&self) -> Result<(), NoOwnerError> {
         let Some(owner) = self.owner.get_untracked() else {
-            tracing::warn!("Tried to mortgage property without owner.");
-            return;
+            return NoOwnerSnafu {
+                property_title: self.data.title,
+            }
+            .fail();
         };
 
         self.mortgaged_for.set(Some(15));
         owner.deposit(self.reward_for_mortgaging());
+        Ok(())
     }
 
-    pub fn recover(&self) {
+    pub fn recover(&self) -> Result<(), OwnedPropertyError> {
         let Some(owner) = self.owner.get_untracked() else {
-            tracing::warn!("Tried to recover property without owner.");
-            return;
+            return NoOwnerSnafu {
+                property_title: self.data.title,
+            }
+            .fail()
+            .map_err(Into::into);
         };
 
         self.mortgaged_for.set(None);
-        owner.withdraw(self.recovery_price());
+        owner.withdraw(self.recovery_price())?;
+        Ok(())
     }
 
     pub fn mortgage_tick(&self) {
@@ -243,40 +380,52 @@ impl Property {
         }
     }
 
-    pub fn build_agency(&self) {
+    pub fn build_agency(&self) -> Result<(), AgencyPropertyError> {
         let Some(owner) = self.owner.get_untracked() else {
-            tracing::warn!("Tried to build agency on property without owner.");
-            return;
+            return NoOwnerSnafu {
+                property_title: self.data.title,
+            }
+            .fail()
+            .map_err(Into::into);
         };
 
         let PropertyType::Simple {
             level_price, level, ..
         } = self.ty
         else {
-            tracing::warn!("Tried to build agency on property that is not PropertyType::Simple.");
-            return;
+            return NotASimplePropertySnafu {
+                property_title: self.data.title,
+            }
+            .fail();
         };
 
-        owner.withdraw(level_price);
+        owner.withdraw(level_price)?;
         level.update(|x| *x += 1);
+        Ok(())
     }
 
-    pub fn sell_agency(&self) {
+    pub fn sell_agency(&self) -> Result<(), AgencyPropertyError> {
         let Some(owner) = self.owner.get_untracked() else {
-            tracing::warn!("Tried to sell agency on property without owner.");
-            return;
+            return NoOwnerSnafu {
+                property_title: self.data.title,
+            }
+            .fail()
+            .map_err(Into::into);
         };
 
         let PropertyType::Simple {
             level_price, level, ..
         } = self.ty
         else {
-            tracing::warn!("Tried to sell agency on property that is not PropertyType::Simple.");
-            return;
+            return NotASimplePropertySnafu {
+                property_title: self.data.title,
+            }
+            .fail();
         };
 
         owner.deposit(level_price);
         level.update(|x| *x -= 1);
+        Ok(())
     }
 }
 

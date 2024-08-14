@@ -11,7 +11,7 @@ use tailwind_merge::tw;
 use web_sys::{HtmlDivElement, Node};
 
 use crate::{
-    cell::{Cell, Property, PropertyType, CELLS_COUNT},
+    cell::{AgencyPropertyError, Cell, OwnedPropertyError, Property, PropertyType, CELLS_COUNT},
     components::{dice::Dice, in_game_modal::InGameModal},
     game_state::GameState,
     hooks::window_scroll::use_window_scroll,
@@ -416,7 +416,9 @@ pub fn PropertyInfo(
                                     view! {
                                         <button
                                             class="p-2 rounded border-2"
-                                            on:click=move |_| property.buy(&game_state.self_player)
+                                            on:click=move |_| {
+                                                let _ = property.buy(&game_state.self_player);
+                                            }
                                         >
                                             "[Debug] Buy"
                                         </button>
@@ -431,7 +433,20 @@ pub fn PropertyInfo(
                                         view! {
                                             <button
                                                 class="p-2 rounded border-2"
-                                                on:click=move |_| property.recover()
+                                                on:click=move |_| {
+                                                    if let Err(error) = property.recover() {
+                                                        match error {
+                                                            OwnedPropertyError::NoOwner { .. } => {
+                                                                unreachable!(
+                                                                    "Property must have owner - we checked it in the Show above",
+                                                                );
+                                                            }
+                                                            OwnedPropertyError::NotEnoughMoney { .. } => {
+                                                                todo!("Show modal");
+                                                            }
+                                                        }
+                                                    }
+                                                }
                                             >
                                                 "Recover"
                                             </button>
@@ -441,7 +456,13 @@ pub fn PropertyInfo(
                                         view! {
                                             <button
                                                 class="p-2 rounded border-2"
-                                                on:click=move |_| property.mortgage()
+                                                on:click=move |_| {
+                                                    property
+                                                        .mortgage()
+                                                        .expect(
+                                                            "Property must have owner - we checked it in the Show above",
+                                                        )
+                                                }
                                             >
                                                 "Mortgage"
                                             </button>
@@ -454,7 +475,20 @@ pub fn PropertyInfo(
                                         view! {
                                             <button
                                                 class="p-2 rounded border-2"
-                                                on:click=move |_| property.recover()
+                                                on:click=move |_| {
+                                                    if let Err(error) = property.recover() {
+                                                        match error {
+                                                            OwnedPropertyError::NoOwner { .. } => {
+                                                                unreachable!(
+                                                                    "Property must have owner - we checked it in the Show above",
+                                                                );
+                                                            }
+                                                            OwnedPropertyError::NotEnoughMoney { .. } => {
+                                                                todo!("Show modal");
+                                                            }
+                                                        }
+                                                    }
+                                                }
                                             >
                                                 "Recover"
                                             </button>
@@ -495,7 +529,25 @@ pub fn PropertyInfo(
                                                     }>
                                                         <button
                                                             class="p-2 rounded border-2"
-                                                            on:click=move |_| property.build_agency()
+                                                            on:click=move |_| {
+                                                                if let Err(error) = property.build_agency() {
+                                                                    match error {
+                                                                        AgencyPropertyError::NoOwner { .. } => {
+                                                                            unreachable!(
+                                                                                "Property must have owner - we checked it in the Show above",
+                                                                            );
+                                                                        }
+                                                                        AgencyPropertyError::NotASimpleProperty { .. } => {
+                                                                            unreachable!(
+                                                                                "Property must be PropertyType::Simple - we are in a PropertyType::Simple match case",
+                                                                            );
+                                                                        }
+                                                                        AgencyPropertyError::NotEnoughMoney { .. } => {
+                                                                            todo!("Show modal")
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }
                                                         >
                                                             "Build agency"
                                                         </button>
@@ -507,7 +559,25 @@ pub fn PropertyInfo(
                                                         view! {
                                                             <button
                                                                 class="p-2 rounded border-2"
-                                                                on:click=move |_| property.sell_agency()
+                                                                on:click=move |_| {
+                                                                    if let Err(error) = property.sell_agency() {
+                                                                        match error {
+                                                                            AgencyPropertyError::NoOwner { .. } => {
+                                                                                unreachable!(
+                                                                                    "Property must have owner - we checked it in the Show above",
+                                                                                );
+                                                                            }
+                                                                            AgencyPropertyError::NotASimpleProperty { .. } => {
+                                                                                unreachable!(
+                                                                                    "Property must be PropertyType::Simple - we are in a PropertyType::Simple match case",
+                                                                                );
+                                                                            }
+                                                                            AgencyPropertyError::NotEnoughMoney { .. } => {
+                                                                                todo!("Show modal")
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                }
                                                             >
                                                                 "Sell agency"
                                                             </button>
@@ -517,7 +587,13 @@ pub fn PropertyInfo(
                                                         view! {
                                                             <button
                                                                 class="p-2 rounded border-2"
-                                                                on:click=move |_| property.mortgage()
+                                                                on:click=move |_| {
+                                                                    property
+                                                                        .mortgage()
+                                                                        .expect(
+                                                                            "Property must have owner - we checked it in the Show above",
+                                                                        );
+                                                                }
                                                             >
                                                                 "Mortgage"
                                                             </button>
