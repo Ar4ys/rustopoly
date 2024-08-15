@@ -20,7 +20,7 @@ pub struct GameState {
     players: RwSignal<HashMap<PlayerId, Player>>,
     pub self_player: Player,
     current_player: RwSignal<Player>,
-    current_step: RwSignal<usize>,
+    current_turn: RwSignal<usize>,
     current_round: RwSignal<usize>,
     rolled_dice: RwSignal<Option<(usize, usize)>>,
     player_token_transition_end: OneShotEventEmitter,
@@ -39,7 +39,7 @@ impl GameState {
         Self {
             self_player: players[&0],
             current_player: RwSignal::new(players[&0]),
-            current_step: RwSignal::new(0),
+            current_turn: RwSignal::new(0),
             current_round: RwSignal::new(0),
             cells: init_cells(),
             players: RwSignal::new(players),
@@ -71,8 +71,8 @@ impl GameState {
         self.cells[index]
     }
 
-    pub fn current_step(&self) -> usize {
-        self.current_step.get()
+    pub fn current_turn(&self) -> usize {
+        self.current_turn.get()
     }
 
     pub fn get_players(&self) -> HashMap<PlayerId, Player> {
@@ -116,12 +116,12 @@ impl GameState {
         let current_cell = self.get_cell(new_position);
         current_cell.trigger(self).await;
 
-        self.finish_step();
+        self.finish_turn();
     }
 
-    pub fn finish_step(&self) {
+    pub fn finish_turn(&self) {
         let is_round_ended = untrack(|| self.next_player());
-        self.current_step.update(|step| *step += 1);
+        self.current_turn.update(|turn| *turn += 1);
 
         if is_round_ended {
             self.current_round.update(|round| *round += 1);
@@ -216,7 +216,7 @@ impl GameState {
         }
 
         if self.current_player.get_untracked() == *player {
-            self.finish_step();
+            self.finish_turn();
         }
     }
 
