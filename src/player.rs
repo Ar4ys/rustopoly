@@ -12,14 +12,6 @@ pub enum ConnectionStatus {
 pub type PlayerId = u64;
 
 #[derive(Debug, Clone, Copy)]
-pub enum PlayerState {
-    Won,
-    Lost,
-    Playing,
-    Left,
-}
-
-#[derive(Debug, Clone, Copy)]
 pub enum PlayerColor {
     Red,
     Blue,
@@ -58,7 +50,7 @@ pub struct Player {
     balance: RwSignal<Money>,
     position: RwSignal<usize>,
     pub is_in_jail: RwSignal<bool>,
-    state: RwSignal<PlayerState>,
+    has_lost: RwSignal<bool>,
     connection_status: RwSignal<ConnectionStatus>,
 }
 
@@ -81,7 +73,7 @@ impl Player {
             balance: RwSignal::new(15_000.into()),
             position: RwSignal::new(0),
             is_in_jail: RwSignal::new(false),
-            state: RwSignal::new(PlayerState::Playing),
+            has_lost: RwSignal::new(false),
             connection_status: RwSignal::new(ConnectionStatus::Connected),
         }
     }
@@ -140,6 +132,14 @@ impl Player {
         if state {
             self.set_position(10);
         }
+    }
+
+    pub fn has_lost(&self) -> bool {
+        self.has_lost.get()
+    }
+
+    pub fn surrender(&self) {
+        self.has_lost.set(true);
     }
 }
 

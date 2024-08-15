@@ -1,6 +1,10 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, future::Future};
 
-use leptos::prelude::*;
+use futures::{
+    stream::{AbortHandle, Abortable},
+    FutureExt,
+};
+use leptos::{prelude::*, spawn::spawn_local};
 
 use crate::{
     cell::{Cell, Property, PropertyGroup, CELLS_COUNT},
@@ -22,6 +26,7 @@ pub struct GameState {
     player_token_transition_end: OneShotEventEmitter,
     dice_transition_end: OneShotEventEmitter,
     pub in_game_modal_state: InGameModalState,
+    abort_handlers: StoredValue<Vec<AbortHandle>>,
 }
 
 impl GameState {
@@ -29,6 +34,7 @@ impl GameState {
         let mut players = HashMap::new();
         players.insert(0, Player::new(0, "Ar4ys", PlayerColor::Blue));
         players.insert(1, Player::new(1, "Madeline", PlayerColor::Green));
+        players.insert(2, Player::new(2, "Asmodeus", PlayerColor::Red));
 
         Self {
             self_player: players[&0],
@@ -41,6 +47,7 @@ impl GameState {
             player_token_transition_end: OneShotEventEmitter::new(),
             dice_transition_end: OneShotEventEmitter::new(),
             in_game_modal_state: InGameModalState::new(),
+            abort_handlers: StoredValue::new(Vec::new()),
         }
     }
 
@@ -135,6 +142,7 @@ impl GameState {
                 .skip_while(|player| **player != self.current_player())
                 // Skip current player
                 .skip(1)
+                .filter(|player| untrack(|| !player.has_lost()))
                 .copied()
                 .collect()
         });
@@ -144,7 +152,7 @@ impl GameState {
                 self.players.with(|players| {
                     players
                         .values()
-                        .next()
+                        .find(|player| untrack(|| !player.has_lost()))
                         .copied()
                         .expect("There should be players!")
                 }),
@@ -194,5 +202,37 @@ impl GameState {
     pub fn has_monopoly_on(&self, player: &Player, property_group: &PropertyGroup) -> bool {
         let (owns, total) = self.has_from_group(player, property_group);
         owns == total
+    }
+
+    pub fn surrender_player(&self, player: &Player) {
+        player.surrender();
+        self.cells
+            .iter()
+            .filter_map(|cell| cell.try_unwrap_property().ok())
+            .filter(|p| untrack(|| p.owner()).is_some_and(|owner| owner == *player))
+            .for_each(|p| p.remove_owner());
+
+        if self.self_player == *player {
+            self.abort_all_tasks();
+        }
+
+        if self.current_player.get_untracked() == *player {
+            self.finish_step();
+        }
+    }
+
+    pub fn spawn_local_abortable(&self, fut: impl Future<Output = ()> + 'static) {
+        let (abort_handle, abort_registration) = AbortHandle::new_pair();
+        self.abort_handlers
+            .update_value(move |abort_handlers| abort_handlers.push(abort_handle));
+        spawn_local(Abortable::new(fut, abort_registration).map(|_| ()));
+    }
+
+    fn abort_all_tasks(&self) {
+        self.abort_handlers.update_value(|abort_handlers| {
+            for handle in abort_handlers.drain(..) {
+                handle.abort();
+            }
+        })
     }
 }

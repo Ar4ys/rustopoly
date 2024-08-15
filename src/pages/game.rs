@@ -121,6 +121,7 @@ pub fn GamePage() -> impl IntoView {
             }}
         </div>
         <div node_ref=refs.cell_popups />
+        <GameFinished />
     }
 }
 
@@ -208,9 +209,6 @@ fn Cell(index: usize, node_ref: NodeRef<Div>) -> impl IntoView {
             .map(|prop| prop.data.group.color)
             .unwrap_or_default()
     };
-
-    // let trigger_on_click =
-    //     move |_| spawn_local(async move { untrack(current_cell).trigger(&game_state).await });
 
     // This causes "Uncaught InternalError: too much recursion"
     // TODO: Report to Leptos
@@ -774,10 +772,17 @@ pub fn PlayerCard(player: Player, #[prop(into, optional)] class: Signal<String>)
     let game_state = GameState::use_context();
 
     let is_current_player = move || game_state.current_player() == player;
+    let is_self_player = game_state.self_player == player;
     let bg = move || {
         is_current_player()
             .then(|| player.color.get_player_gradient())
             .unwrap_or_default()
+    };
+
+    let surrender = move |_| {
+        if is_self_player {
+            game_state.surrender_player(&player);
+        }
     };
 
     view! {
@@ -787,9 +792,11 @@ pub fn PlayerCard(player: Player, #[prop(into, optional)] class: Signal<String>)
                 tw!(
                     "flex flex-col items-center justify-center p-3 bg-gray-900 transition-all",
                     is_current_player() => "scale-105",
+                    is_self_player => "cursor-pointer",
                     class()
                 )
             }
+            on:click=surrender
         >
             <div
                 class="w-14 h-14 bg-gray-900 rounded-full"
@@ -866,15 +873,14 @@ pub fn Chat(
     #[prop(into, optional)] class: Signal<String>,
 ) -> impl IntoView {
     let game_state = GameState::use_context();
-    let roll_dice_action = Action::new_local(move |()| async move { game_state.roll_dice().await });
-    let roll_dice_pending = roll_dice_action.pending();
+    let roll_dice_pending = RwSignal::new(false);
 
     let roll_dice = move |_| {
         if roll_dice_pending() {
             return;
         };
 
-        roll_dice_action.dispatch(());
+        game_state.spawn_local_abortable(async move { game_state.roll_dice().await });
     };
 
     view! {
@@ -888,5 +894,27 @@ pub fn Chat(
             "Chat"
             <InGameModal />
         </div>
+    }
+}
+
+#[component]
+pub fn GameFinished() -> impl IntoView {
+    let game_state = GameState::use_context();
+
+    let left_players = move || {
+        game_state
+            .get_players()
+            .into_values()
+            .filter(|player| !player.has_lost())
+            .collect::<Vec<_>>()
+    };
+
+    view! {
+        <Show when=move || left_players().len() == 1>
+            <div class="flex absolute top-0 left-0 z-20 flex-col justify-center items-center w-screen h-screen bg-black/50">
+                <div>"Game Finished"</div>
+                <div>"Winner: " {move || left_players()[0].name.get_value()}</div>
+            </div>
+        </Show>
     }
 }

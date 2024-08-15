@@ -5,7 +5,7 @@
     }
   ],
   "settings": {
-    "cSpell.words": ["Rustopoly"],
+    "cSpell.words": ["Abortable", "Rustopoly"],
     "rust-analyzer.rustfmt.overrideCommand": [
       "/home/ar4ys/.cargo/bin/leptosfmt",
       "--experimental-tailwind",

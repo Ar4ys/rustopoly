@@ -22,7 +22,9 @@ impl OneShotEventEmitter {
 
     pub async fn listen_async(&self) {
         let (sender, receiver) = oneshot::channel();
-        self.listen(move || sender.send(()).unwrap());
+        self.listen(move || {
+            let _ = sender.send(());
+        });
         receiver.await.unwrap()
     }
 

@@ -12,6 +12,12 @@ pub fn InGameModal() -> impl IntoView {
     let game_state = GameState::use_context();
     let is_hidden = move || game_state.in_game_modal_state.ty.get().is_none();
 
+    Effect::new(move |_| {
+        if game_state.self_player.has_lost() {
+            game_state.in_game_modal_state.ty.set(None);
+        }
+    });
+
     view! {
         <div class=move || {
             tw!(

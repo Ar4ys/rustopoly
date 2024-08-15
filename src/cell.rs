@@ -35,7 +35,13 @@ impl Cell {
             Cell::Start => current_player.deposit(1000.into()),
             Cell::GoToJail => current_player.set_is_in_jail(true),
             Cell::Property(prop) => {
-                if let Some(rent) = untrack(|| prop.rent(game_state)) {
+                if prop
+                    .owner
+                    .get_untracked()
+                    .is_some_and(|owner| owner == current_player)
+                {
+                    // TODO: Log into chat: "Stepped on his own property"
+                } else if let Some(rent) = untrack(|| prop.rent(game_state)) {
                     game_state
                         .in_game_modal_state
                         .one_button_async(
@@ -62,7 +68,10 @@ impl Cell {
                                     source.player_id,
                                     source.amount,
                                 );
-                                // TODO: Trigger current_player.surrender()
+                                game_state.surrender_player(&current_player);
+                                if let Some(owner) = prop.owner.get_untracked() {
+                                    owner.deposit(rent);
+                                }
                             }
                         }
                     };
@@ -109,7 +118,7 @@ impl Cell {
             }
 
             Cell::Chance => {
-                let random_chance = rand::get_usize(0..=6);
+                let random_chance = rand::get_usize(0..=5);
                 let you_get = [500, 1000, 2000, -2000, -1000, -500].map(Money::new)[random_chance];
                 game_state
                     .in_game_modal_state
@@ -134,7 +143,7 @@ impl Cell {
                         error.player_id,
                         error.amount,
                     );
-                    // TODO: Trigger current_player.surrender()
+                    game_state.surrender_player(&current_player);
                 }
             }
 
@@ -153,7 +162,7 @@ impl Cell {
                         error.player_id,
                         error.amount,
                     );
-                    // TODO: Trigger current_player.surrender()
+                    game_state.surrender_player(&current_player);
                 }
             }
         }
@@ -260,6 +269,10 @@ impl Property {
 
     pub fn owner(&self) -> Option<Player> {
         self.owner.get()
+    }
+
+    pub fn remove_owner(&self) {
+        self.owner.set(None);
     }
 
     pub fn mortgaged_for(&self) -> Option<usize> {
