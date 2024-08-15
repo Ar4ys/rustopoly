@@ -123,14 +123,13 @@ impl GameState {
         let is_round_ended = untrack(|| self.next_player());
         self.current_step.update(|step| *step += 1);
 
-        for cell in self.cells.iter() {
-            if let Cell::Property(property) = cell {
-                property.mortgage_tick();
-            };
-        }
-
         if is_round_ended {
             self.current_round.update(|round| *round += 1);
+            for cell in self.cells.iter() {
+                if let Cell::Property(property) = cell {
+                    property.mortgage_tick();
+                };
+            }
         }
     }
 
