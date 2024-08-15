@@ -11,7 +11,10 @@ use tailwind_merge::tw;
 use web_sys::{HtmlDivElement, Node};
 
 use crate::{
-    cell::{AgencyPropertyError, Cell, OwnedPropertyError, Property, PropertyType, CELLS_COUNT},
+    cell::{
+        BuildAgencyError, Cell, OwnedPropertyError, Property, PropertyType, SellAgencyError,
+        CELLS_COUNT,
+    },
     components::{dice::Dice, in_game_modal::InGameModal},
     game_state::GameState,
     hooks::window_scroll::use_window_scroll,
@@ -523,26 +526,26 @@ pub fn PropertyInfo(
                                                                 && !other_props
                                                                     .iter()
                                                                     .any(|(x, p)| x() < level() || p.mortgaged_for().is_some())
+                                                                && !game_state
+                                                                    .get_properties_by_group(&property.data.group)
+                                                                    .into_iter()
+                                                                    .any(|prop| prop.is_agency_built())
                                                         }
                                                     }>
                                                         <button
                                                             class="p-2 rounded border-2"
                                                             on:click=move |_| {
-                                                                if let Err(error) = property.build_agency() {
+                                                                if let Err(error) = property.build_agency(&game_state) {
                                                                     match error {
-                                                                        AgencyPropertyError::NoOwner { .. } => {
+                                                                        BuildAgencyError::NoOwner { .. } => {
                                                                             unreachable!(
                                                                                 "Property must have owner - we checked it in the Show above",
                                                                             );
                                                                         }
-                                                                        AgencyPropertyError::NotASimpleProperty { .. } => {
-                                                                            unreachable!(
-                                                                                "Property must be PropertyType::Simple - we are in a PropertyType::Simple match case",
-                                                                            );
-                                                                        }
-                                                                        AgencyPropertyError::NotEnoughMoney { .. } => {
+                                                                        BuildAgencyError::NotEnoughMoney { .. } => {
                                                                             todo!("Show modal")
                                                                         }
+                                                                        BuildAgencyError::AlreadyBuilt { .. } => todo!("Show modal"),
                                                                     }
                                                                 }
                                                             }
@@ -560,18 +563,10 @@ pub fn PropertyInfo(
                                                                 on:click=move |_| {
                                                                     if let Err(error) = property.sell_agency() {
                                                                         match error {
-                                                                            AgencyPropertyError::NoOwner { .. } => {
+                                                                            SellAgencyError::NoOwner { .. } => {
                                                                                 unreachable!(
                                                                                     "Property must have owner - we checked it in the Show above",
                                                                                 );
-                                                                            }
-                                                                            AgencyPropertyError::NotASimpleProperty { .. } => {
-                                                                                unreachable!(
-                                                                                    "Property must be PropertyType::Simple - we are in a PropertyType::Simple match case",
-                                                                                );
-                                                                            }
-                                                                            AgencyPropertyError::NotEnoughMoney { .. } => {
-                                                                                todo!("Show modal")
                                                                             }
                                                                         }
                                                                     }

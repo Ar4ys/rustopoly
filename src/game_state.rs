@@ -127,7 +127,7 @@ impl GameState {
             self.current_round.update(|round| *round += 1);
             for cell in self.cells.iter() {
                 if let Cell::Property(property) = cell {
-                    property.mortgage_tick();
+                    property.tick();
                 };
             }
         }

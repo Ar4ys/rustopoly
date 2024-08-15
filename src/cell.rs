@@ -175,6 +175,7 @@ pub struct Property {
     pub data: PropertyData,
     owner: RwSignal<Option<Player>>,
     mortgaged_for: RwSignal<Option<usize>>,
+    is_agency_built: RwSignal<bool>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -224,13 +225,22 @@ pub enum FreePropertyError {
 }
 
 #[derive(Debug, Snafu)]
-pub enum AgencyPropertyError {
+pub enum BuildAgencyError {
     #[snafu(transparent)]
     NoOwner { source: NoOwnerError },
     #[snafu(transparent)]
     NotEnoughMoney { source: NotEnoughMoneyError },
-    #[snafu(display("Property \"{property_title}\" is not a PropertyType::Simple"))]
-    NotASimpleProperty { property_title: &'static str },
+    #[snafu(display("Cannot build agency: you built one this turn for property \"{property_title}\" from the same group \"{group_title}\""))]
+    AlreadyBuilt {
+        property_title: &'static str,
+        group_title: &'static str,
+    },
+}
+
+#[derive(Debug, Snafu)]
+pub enum SellAgencyError {
+    #[snafu(transparent)]
+    NoOwner { source: NoOwnerError },
 }
 
 #[derive(Debug, Snafu)]
@@ -256,6 +266,7 @@ impl Property {
             data,
             owner: RwSignal::new(None),
             mortgaged_for: RwSignal::new(None),
+            is_agency_built: RwSignal::new(false),
         }
     }
 
@@ -277,6 +288,10 @@ impl Property {
 
     pub fn mortgaged_for(&self) -> Option<usize> {
         self.mortgaged_for.get()
+    }
+
+    pub fn is_agency_built(&self) -> bool {
+        self.is_agency_built.get()
     }
 
     pub fn rent(&self, game_state: &GameState) -> Option<Money> {
@@ -378,7 +393,9 @@ impl Property {
         Ok(())
     }
 
-    pub fn mortgage_tick(&self) {
+    pub fn tick(&self) {
+        self.is_agency_built.set(false);
+
         let Some(mut mortgaged_for) = self.mortgaged_for.get_untracked() else {
             return;
         };
@@ -393,7 +410,7 @@ impl Property {
         }
     }
 
-    pub fn build_agency(&self) -> Result<(), AgencyPropertyError> {
+    pub fn build_agency(&self, game_state: &GameState) -> Result<(), BuildAgencyError> {
         let Some(owner) = self.owner.get_untracked() else {
             return NoOwnerSnafu {
                 property_title: self.data.title,
@@ -402,22 +419,35 @@ impl Property {
             .map_err(Into::into);
         };
 
+        if let Some(prop) = game_state
+            .get_properties_by_group(&self.data.group)
+            .into_iter()
+            .find(|prop| prop.is_agency_built.get_untracked())
+        {
+            return AlreadyBuiltSnafu {
+                property_title: prop.data.title,
+                group_title: prop.data.group.title,
+            }
+            .fail();
+        }
+
         let PropertyType::Simple {
             level_price, level, ..
         } = self.ty
         else {
-            return NotASimplePropertySnafu {
-                property_title: self.data.title,
-            }
-            .fail();
+            panic!(
+                "Unable to build agency: property \"{}\" is not a PropertyType::Simple",
+                self.data.title
+            );
         };
 
         owner.withdraw(level_price)?;
         level.update(|x| *x += 1);
+        self.is_agency_built.set(true);
         Ok(())
     }
 
-    pub fn sell_agency(&self) -> Result<(), AgencyPropertyError> {
+    pub fn sell_agency(&self) -> Result<(), SellAgencyError> {
         let Some(owner) = self.owner.get_untracked() else {
             return NoOwnerSnafu {
                 property_title: self.data.title,
@@ -430,14 +460,15 @@ impl Property {
             level_price, level, ..
         } = self.ty
         else {
-            return NotASimplePropertySnafu {
-                property_title: self.data.title,
-            }
-            .fail();
+            panic!(
+                "Unable to build agency: property \"{}\" is not a PropertyType::Simple",
+                self.data.title
+            );
         };
 
         owner.deposit(level_price);
         level.update(|x| *x -= 1);
+        self.is_agency_built.set(false);
         Ok(())
     }
 }
