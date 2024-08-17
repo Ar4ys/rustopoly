@@ -49,11 +49,15 @@ pub fn uncaught_error_hook(
     // TODO: Use JsValue here
     err: Error,
 ) -> bool {
-    error(format_exception(&err.message(), Some((&source, line)), &err.stack()).into_boxed_slice());
-
-    // TODO: Return true only if backtrace contains any wasm-related lines.
-    // Otherwise, let the browser handle the error.
-    true
+    let stack = &err.stack();
+    // Process error only if it contains wasm frames in stacktrace.
+    // Otherwise, let the runtime (browser, node, etc.) handle it.
+    if stack.contains(":wasm-function") {
+        error(format_exception(&err.message(), Some((&source, line)), stack).into_boxed_slice());
+        true
+    } else {
+        false
+    }
 }
 
 fn format_exception(message: &str, location: Option<(&str, u32)>, stack: &str) -> Vec<String> {
