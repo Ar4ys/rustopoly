@@ -3,52 +3,78 @@ use std::panic;
 use tracing_error::SpanTraceStatus;
 use wasm_bindgen::prelude::*;
 
+use crate::utils::into_either_of::IntoEitherOf2;
+
 #[wasm_bindgen]
 extern "C" {
     #[wasm_bindgen(js_namespace = console, variadic)]
-    pub fn error(items: Box<[String]>);
+    fn error(items: Box<[String]>);
 
-    type Error;
+    pub type Error;
 
     #[wasm_bindgen(constructor)]
     fn new() -> Error;
 
-    #[wasm_bindgen(structural, method, getter)]
-    fn stack(error: &Error) -> String;
+    #[wasm_bindgen(method, getter, structural)]
+    fn stack(this: &Error) -> String;
+
+    #[wasm_bindgen(method, getter, structural)]
+    fn message(this: &Error) -> String;
+
+    #[wasm_bindgen(method, getter, structural)]
+    fn name(this: &Error) -> String;
+
 }
 
 pub fn panic_hook(info: &panic::PanicHookInfo) {
-    error(format_panic(info).into_boxed_slice());
+    error(
+        format_exception(
+            info.payload()
+                .downcast_ref::<String>()
+                .map(String::as_str)
+                .or_else(|| info.payload().downcast_ref::<&str>().cloned())
+                .unwrap_or("<non string panic payload>"),
+            info.location().map(|loc| (loc.file(), loc.line())),
+            &Error::new().stack(),
+        )
+        .into_boxed_slice(),
+    );
 }
 
-fn format_panic(info: &panic::PanicHookInfo) -> Vec<String> {
+pub fn uncaught_error_hook(
+    _event: js_sys::JsString,
+    source: String,
+    line: u32,
+    _col: u32,
+    // TODO: Use JsValue here
+    err: Error,
+) -> bool {
+    error(format_exception(&err.message(), Some((&source, line)), &err.stack()).into_boxed_slice());
+
+    // TODO: Return true only if backtrace contains any wasm-related lines.
+    // Otherwise, let the browser handle the error.
+    true
+}
+
+fn format_exception(message: &str, location: Option<(&str, u32)>, stack: &str) -> Vec<String> {
     let mut f = JsLogFormatter::new();
 
     f.style("color: white")
-        .writeln("The application panicked (crashed).");
-
-    // Print panic message.
-    let payload = info
-        .payload()
-        .downcast_ref::<String>()
-        .map(String::as_str)
-        .or_else(|| info.payload().downcast_ref::<&str>().cloned())
-        .unwrap_or("<non string panic payload>");
-
-    f.style("color: white")
+        .writeln("The application panicked (crashed).")
+        .style("color: white")
         .write("Message: ")
         .style("color: cyan")
-        .writeln(payload)
+        .writeln(message)
         .style("color: white")
         .write("Location: ");
 
-    if let Some(loc) = info.location() {
+    if let Some((file, line)) = location {
         f.style("color: fuchsia")
-            .write(loc.file())
+            .write(file)
             .style("color: white")
             .write(":")
             .style("color: fuchsia")
-            .write(loc.line());
+            .write(line);
     } else {
         f.style("color: fuchsia").write("<unknown>");
     }
@@ -60,7 +86,7 @@ fn format_panic(info: &panic::PanicHookInfo) -> Vec<String> {
         ).writeln(span_trace);
     }
 
-    write_stack_trace(&mut f);
+    write_stack_trace(&mut f, stack);
 
     f.build()
 }
@@ -75,19 +101,114 @@ fn format_panic(info: &panic::PanicHookInfo) -> Vec<String> {
 /// it only touches the logged message's associated stack, and not
 /// the message's contents, by including the stack in the message
 /// contents we make sure it is available to the user.
-fn write_stack_trace(f: &mut JsLogFormatter) {
+fn write_stack_trace(f: &mut JsLogFormatter, stack: &str) {
     f.style("color: white").writeln(
         "\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ STACKTRACE ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n",
     );
-    let e = Error::new();
-    let stack = e.stack();
-    f.write(stack);
+
+    prettify_stack_trace(f, stack);
 
     // Safari's devtools, on the other hand, _do_ mess with logged
     // messages' contents, so we attempt to break their heuristics for
     // doing that by appending some whitespace.
     // https://github.com/rustwasm/console_error_panic_hook/issues/7
     f.write("\n\n");
+}
+
+fn prettify_stack_trace(f: &mut JsLogFormatter, stack: &str) {
+    const BEGIN_MARKER: &str = "__rust_begin_short_backtrace";
+    const END_MARKER: &str = "__rust_end_short_backtrace";
+
+    let short_backtrace_iter = stack.split_terminator('\n').rev();
+
+    // In some cases "Error::stack()" does not contain begin/end_short_backtrace markers.
+    // In those cases we print the whole backtrace.
+    let short_backtrace_iter = if stack.contains(BEGIN_MARKER) {
+        short_backtrace_iter
+            .skip_while(|line| !line.contains(BEGIN_MARKER))
+            .skip(1)
+            .into_either_of_2a()
+    } else {
+        short_backtrace_iter.into_either_of_2b()
+    };
+
+    let short_backtrace_iter = if stack.contains(END_MARKER) {
+        short_backtrace_iter
+            .take_while(|line| !line.contains(END_MARKER))
+            .into_either_of_2a()
+    } else {
+        short_backtrace_iter.into_either_of_2b()
+    };
+
+    let short_backtrace = short_backtrace_iter
+        // TODO: Deal with URLs/function names containing "@"
+        .map(|line| line.split_once('@').unwrap_or((line, "")))
+        .map(|(name, location)| {
+            (
+                name.split_once(".wasm.")
+                    .map(|(_, name)| name)
+                    .unwrap_or(name),
+                location,
+            )
+        })
+        .collect::<Vec<_>>();
+
+    // TODO: Do we need location? Maybe only for js?
+    // let max_name_length = short_backtrace
+    //     .iter()
+    //     .map(|(name, _)| name.len())
+    //     .max()
+    //     .unwrap_or_default();
+
+    for (name, _location) in short_backtrace.into_iter().rev() {
+        if is_internal_stack(name) {
+            f.style("color: gray");
+        } else {
+            f.style("color: white");
+        }
+
+        let name = name
+            .rsplit_once("::")
+            .filter(|(_, right)| is_rust_hash(right))
+            .map(|(left, _)| left)
+            .unwrap_or(name);
+
+        if name.is_empty() {
+            f.writeln("<unknown>");
+        } else {
+            f.writeln(name);
+        };
+
+        // TODO: Do we need location? Maybe only for js?
+        // if name.is_empty() {
+        //     f.write("<unknown> ")
+        // } else {
+        //     f.write(format!("{name:max_name_length$} ",))
+        // };
+        // f.style("color: rgb(69, 161, 255)").writeln(location);
+    }
+}
+
+/// Rust hashes are hex digits with an `h` prepended.
+///
+/// Copied from: [rust-lang/rustc-demangle/src/legacy.rs:100](https://github.com/rust-lang/rustc-demangle/blob/e9a47da0b06e41098e5afaa2f07b2c47c0254c80/src/legacy.rs#L100-L103)
+fn is_rust_hash(s: &str) -> bool {
+    s.starts_with('h') && s[1..].chars().all(|c| c.is_ascii_hexdigit())
+}
+
+fn is_internal_stack(stack: &str) -> bool {
+    let equals = ["rust_begin_unwind", "handleError", "real"];
+    let contains = ["__wbg"];
+    let starts_with = ["core", "std", "alloc", "wasm_bindgen", "web_sys", "js_sys"];
+
+    equals.into_iter().any(|pattern| stack == pattern)
+        || contains.into_iter().any(|pattern| stack.contains(pattern))
+        || starts_with.into_iter().any(|pattern| {
+            stack
+                .trim_start_matches("<")
+                .trim_start_matches("dyn ")
+                .starts_with(pattern)
+        })
 }
 
 struct JsLogFormatter {
