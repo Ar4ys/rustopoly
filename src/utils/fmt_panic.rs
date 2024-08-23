@@ -1,5 +1,7 @@
-use std::panic;
+// TODO: This should be a separate crate.
+use std::{panic, sync::OnceLock};
 
+use sourcemap::SourceMap;
 use tracing_error::SpanTraceStatus;
 use wasm_bindgen::prelude::*;
 
@@ -35,7 +37,8 @@ pub fn panic_hook(info: &panic::PanicHookInfo) {
                 .map(String::as_str)
                 .or_else(|| info.payload().downcast_ref::<&str>().cloned())
                 .unwrap_or("<non string panic payload>"),
-            info.location().map(|loc| (loc.file(), loc.line())),
+            info.location()
+                .map(|loc| (loc.file(), loc.line(), loc.column())),
             &Error::new().stack(),
         )
         .into_boxed_slice(),
@@ -46,7 +49,7 @@ pub fn uncaught_error_hook(
     _event: js_sys::JsString,
     source: String,
     line: u32,
-    _col: u32,
+    col: u32,
     // TODO: Use JsValue here
     err: Error,
 ) -> bool {
@@ -58,7 +61,7 @@ pub fn uncaught_error_hook(
             format_exception(
                 &format!("Uncaught {}", err.name()),
                 &err.message(),
-                Some((&source, line)),
+                Some((&source, line, col)),
                 stack,
             )
             .into_boxed_slice(),
@@ -72,7 +75,7 @@ pub fn uncaught_error_hook(
 fn format_exception(
     header: &str,
     message: &str,
-    location: Option<(&str, u32)>,
+    location: Option<(&str, u32, u32)>,
     stack: &str,
 ) -> Vec<String> {
     let mut f = JsLogFormatter::new();
@@ -86,13 +89,25 @@ fn format_exception(
         .style("color: white")
         .write("Location: ");
 
-    if let Some((file, line)) = location {
+    if let Some((file, line, col)) = location {
+        let (file, line, col) = file
+            // TODO: Better ways to identify a wasm file.
+            .contains(".wasm")
+            // Browser reports position as "line", while SourceMap expects it as "col".
+            .then(|| lookup_wasm_location(line))
+            .flatten()
+            .unwrap_or((file, line, col));
+
         f.style("color: fuchsia")
             .write(file)
             .style("color: white")
             .write(":")
             .style("color: fuchsia")
-            .write(line);
+            .write(line)
+            .style("color: white")
+            .write(":")
+            .style("color: fuchsia")
+            .write(col);
     } else {
         f.style("color: fuchsia").write("<unknown>");
     }
@@ -160,6 +175,7 @@ fn prettify_stack_trace(f: &mut JsLogFormatter, stack: &str) {
 
     let short_backtrace = short_backtrace_iter
         // TODO: Deal with URLs/function names containing "@"
+        // TODO: Stack trace parsing for Chromium and Safari (only Firefox uses "@" as a separator)
         .map(|line| line.split_once('@').unwrap_or((line, "")))
         .map(|(name, location)| {
             (
@@ -171,15 +187,9 @@ fn prettify_stack_trace(f: &mut JsLogFormatter, stack: &str) {
         })
         .collect::<Vec<_>>();
 
-    // TODO: Do we need location? Maybe only for js?
-    // let max_name_length = short_backtrace
-    //     .iter()
-    //     .map(|(name, _)| name.len())
-    //     .max()
-    //     .unwrap_or_default();
-
-    for (name, _location) in short_backtrace.into_iter().rev() {
-        if is_internal_stack(name) {
+    for (name, location) in short_backtrace.into_iter().rev() {
+        let is_internal = is_internal_stack(name);
+        if is_internal {
             f.style("color: gray");
         } else {
             f.style("color: white");
@@ -192,18 +202,19 @@ fn prettify_stack_trace(f: &mut JsLogFormatter, stack: &str) {
             .unwrap_or(name);
 
         if name.is_empty() {
-            f.writeln("<unknown>");
+            f.writeln("<unknown>")
         } else {
-            f.writeln(name);
+            f.writeln(name)
         };
 
-        // TODO: Do we need location? Maybe only for js?
-        // if name.is_empty() {
-        //     f.write("<unknown> ")
-        // } else {
-        //     f.write(format!("{name:max_name_length$} ",))
-        // };
-        // f.style("color: rgb(69, 161, 255)").writeln(location);
+        let location = location
+            .rsplit_once(":")
+            .and_then(|(_, right)| u32::from_str_radix(right.trim_start_matches("0x"), 16).ok())
+            .and_then(lookup_wasm_location)
+            .map(|(source, line, col)| format!("{source}:{line}:{col}"))
+            .unwrap_or(location.to_owned());
+
+        f.writeln(format!("    at {location}"));
     }
 }
 
@@ -227,6 +238,45 @@ fn is_internal_stack(stack: &str) -> bool {
                 .trim_start_matches("dyn ")
                 .starts_with(pattern)
         })
+}
+
+fn get_source_map() -> Option<&'static SourceMap> {
+    const WASM_SOURCE_MAP_KEY: &str = "__wasm_source_map__";
+    static SOURCE_MAP: OnceLock<Option<SourceMap>> = OnceLock::new();
+
+    SOURCE_MAP
+        .get_or_init(|| {
+            let wasm_source_map = js_sys::Reflect::get(
+                &js_sys::global(),
+                &WASM_SOURCE_MAP_KEY.into(),
+            )
+            .inspect_err(|err| {
+                web_sys::console::warn_2(
+                    &format!("Cannot get wasm sourcemap: unable to access global variable {WASM_SOURCE_MAP_KEY}. Reason:").into(),
+                    err,
+                )
+            }).ok()?;
+
+            let Some(wasm_source_map) = wasm_source_map.as_string() else {
+                web_sys::console::warn_1(
+                    &format!("Cannot get wasm sourcemap: global variable {WASM_SOURCE_MAP_KEY} is not a string.").into(),
+                );
+                return None;
+            };
+
+            SourceMap::from_slice(wasm_source_map.as_bytes()).inspect_err(|err| {
+                web_sys::console::warn_1(
+                    &format!("Cannot get wasm sourcemap: unable to create SourceMap from {WASM_SOURCE_MAP_KEY}. Reason: {err}").into(),
+                )
+            }).ok()
+        })
+        .as_ref()
+}
+
+fn lookup_wasm_location(col: u32) -> Option<(&'static str, u32, u32)> {
+    let token = get_source_map()?.lookup_token(0, col)?;
+    let (source, line, col, _) = token.to_tuple();
+    Some((source, line + 1, col + 1))
 }
 
 struct JsLogFormatter {

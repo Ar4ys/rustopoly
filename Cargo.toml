@@ -13,6 +13,7 @@ leptos_router = { version = "0.7.0-beta", features = ["nightly"] }
 serde = "1.0.204"
 serde-wasm-bindgen = "0.6.5"
 snafu = "0.8.4"
+sourcemap = "9.0.0"
 tailwind-merge = { version = "0.1.0", path = "../tailwind-merge" }
 tracing = "0.1.40"
 tracing-error = "0.2.0"
