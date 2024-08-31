@@ -867,25 +867,8 @@ pub fn Chat(
     node_ref: NodeRef<Div>,
     #[prop(into, optional)] class: Signal<String>,
 ) -> impl IntoView {
-    let game_state = GameState::use_context();
-    let roll_dice_pending = RwSignal::new(false);
-
-    let roll_dice = move |_| {
-        if roll_dice_pending() {
-            return;
-        };
-
-        game_state.spawn_local_abortable(async move { game_state.roll_dice().await });
-    };
-
     view! {
-        <div
-            node_ref=node_ref
-            class=move || {
-                tw!("relative bg-cyan-700", !roll_dice_pending() => "cursor-pointer", class())
-            }
-            on:click=roll_dice
-        >
+        <div node_ref=node_ref class=move || { tw!("relative bg-cyan-700", class()) }>
             "Chat"
             <InGameModal />
         </div>

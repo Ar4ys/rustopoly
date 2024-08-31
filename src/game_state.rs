@@ -36,7 +36,7 @@ impl GameState {
         players.insert(1, Player::new(1, "Madeline", PlayerColor::Green));
         players.insert(2, Player::new(2, "Asmodeus", PlayerColor::Red));
 
-        Self {
+        let game_state = Self {
             self_player: players[&0],
             current_player: RwSignal::new(players[&0]),
             current_turn: RwSignal::new(0),
@@ -48,7 +48,11 @@ impl GameState {
             dice_transition_end: OneShotEventEmitter::new(),
             in_game_modal_state: InGameModalState::new(),
             abort_handlers: StoredValue::new(Vec::new()),
-        }
+        };
+
+        game_state.ask_to_roll_dice();
+
+        game_state
     }
 
     pub fn provide_context(&self) {
@@ -131,6 +135,8 @@ impl GameState {
                 };
             }
         }
+
+        self.ask_to_roll_dice();
     }
 
     pub fn next_player(&self) -> bool {
@@ -165,6 +171,16 @@ impl GameState {
         self.rolled_dice.set(None);
 
         is_round_ended
+    }
+
+    pub fn ask_to_roll_dice(&self) {
+        // TODO: Use this if when networking
+        // if game_state.self_player == game_state.current_player()
+        let this = *self;
+        self.in_game_modal_state
+            .one_button("Roll thy dice!", "Roll", move || {
+                this.spawn_local_abortable(async move { this.roll_dice().await });
+            });
     }
 
     pub fn player_token_transition_end(&self) {
@@ -215,15 +231,27 @@ impl GameState {
             self.abort_all_tasks();
         }
 
-        if self.current_player.get_untracked() == *player {
+        if crate::dbg!(self.current_player.get_untracked() == *player) {
             self.finish_turn();
         }
     }
 
+    #[track_caller]
     pub fn spawn_local_abortable(&self, fut: impl Future<Output = ()> + 'static) {
         let (abort_handle, abort_registration) = AbortHandle::new_pair();
-        self.abort_handlers
-            .update_value(move |abort_handlers| abort_handlers.push(abort_handle));
+        // TODO: For some reason, is_disposed is true here, which results in abort bellow.
+        crate::println!(
+            "Inside spawn_local_abortable: {}; is_disposed: {}",
+            std::panic::Location::caller(),
+            self.abort_handlers.is_disposed()
+        );
+
+        // TODO: Aborts (not even panics), because we hit "unreachable" in "std::sys::sync::rwlock::no_threads::RwLock::write"
+        self.abort_handlers.update_value(move |abort_handlers| {
+            crate::println!("Inside update_value",);
+            abort_handlers.push(abort_handle);
+        });
+
         spawn_local(Abortable::new(fut, abort_registration).map(|_| ()));
     }
 

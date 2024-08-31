@@ -17,6 +17,7 @@ use crate::{
 pub const CELLS_COUNT: usize = 40;
 
 #[derive(Debug, Clone, Copy, TryUnwrap)]
+#[allow(clippy::large_enum_variant)]
 pub enum Cell {
     Start,
     Jail,

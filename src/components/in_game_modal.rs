@@ -75,13 +75,7 @@ pub fn InGameModalView(
     view! {
         <>
             <p>{text}</p>
-            <button
-                class="p-2 mt-3 rounded border-2"
-                on:click=move |ev| {
-                    ev.stop_propagation();
-                    on_left_button_click(());
-                }
-            >
+            <button class="p-2 mt-3 rounded border-2" on:click=move |_| on_left_button_click(())>
                 {left_button_text}
             </button>
             {move || {
@@ -90,10 +84,7 @@ pub fn InGameModalView(
                         view! {
                             <button
                                 class="p-2 ml-3 rounded border-2"
-                                on:click=move |ev| {
-                                    ev.stop_propagation();
-                                    on_right_button_click(());
-                                }
+                                on:click=move |_| on_right_button_click(())
                             >
                                 {right_button_text.clone()}
                             </button>
