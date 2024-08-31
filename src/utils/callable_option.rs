@@ -1,5 +1,6 @@
 use leptos::prelude::{Callable, Callback};
 
+// TODO: Propose "impl<In, Out> Fn<(In,)> for Option<Callback<In, Out>>" into Leptos.
 pub trait CallableOption<In: 'static, Out: 'static = ()> {
     fn call(self, input: In) -> Option<Out>;
 }

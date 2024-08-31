@@ -1,4 +1,8 @@
-// TODO: Into separate crate
+// TODO: Make this a separate public crate "isolog" - isomorphic logging.
+// The idea is to be able to use println, dbg, and friends, that work regardless of environment:
+//  - javascript wasm
+//  - "native" wasm (wasmtime and friends)
+//  - possibly even embedded
 
 #[macro_export]
 macro_rules! println {

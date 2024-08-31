@@ -1,4 +1,12 @@
-// TODO: This should be a separate crate.
+// TODO: This should be a separate public crate - replacement for "console_error_panic_hook".
+// This implementation is better, because:
+// - it properly formats stacktrace on Firefox
+// - it supports source maps generated from WASM
+// - it catches "RuntimeError: unreachable executed" and properly prints stacktrace for it.
+//   This error happens primarily when rust aborts (even when panicking). The problem is when
+//   something like "RwLock::write" crashes - it directly aborts instead of panicking, which results
+//   in "RuntimeError: unreachable executed" without any more info on WTF exactly crashed.
+
 use std::{panic, sync::OnceLock};
 
 use sourcemap::SourceMap;
