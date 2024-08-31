@@ -26,7 +26,7 @@ pub struct GameState {
     player_token_transition_end: OneShotEventEmitter,
     dice_transition_end: OneShotEventEmitter,
     pub in_game_modal_state: InGameModalState,
-    abort_handlers: StoredValue<Vec<AbortHandle>>,
+    abort_handlers: RwSignal<Vec<AbortHandle>>,
 }
 
 impl GameState {
@@ -47,7 +47,7 @@ impl GameState {
             player_token_transition_end: OneShotEventEmitter::new(),
             dice_transition_end: OneShotEventEmitter::new(),
             in_game_modal_state: InGameModalState::new(),
-            abort_handlers: StoredValue::new(Vec::new()),
+            abort_handlers: RwSignal::new(Vec::new()),
         };
 
         game_state.ask_to_roll_dice();
@@ -239,16 +239,19 @@ impl GameState {
     #[track_caller]
     pub fn spawn_local_abortable(&self, fut: impl Future<Output = ()> + 'static) {
         let (abort_handle, abort_registration) = AbortHandle::new_pair();
-        // TODO: For some reason, is_disposed is true here, which results in abort bellow.
-        crate::println!(
-            "Inside spawn_local_abortable: {}; is_disposed: {}",
-            std::panic::Location::caller(),
-            self.abort_handlers.is_disposed()
-        );
+        // TODO: "StoredValue::is_disposed" has logical error: it returns true if arena contains the node,
+        // instead of otherwise - returning true if arena DOESN'T contain the node.
+        // Report to Leptos.
+        // crate::println!(
+        //     "Inside spawn_local_abortable. is_disposed: {}",
+        //     self.abort_handlers.is_disposed()
+        // );
 
         // TODO: Aborts (not even panics), because we hit "unreachable" in "std::sys::sync::rwlock::no_threads::RwLock::write"
-        self.abort_handlers.update_value(move |abort_handlers| {
-            crate::println!("Inside update_value",);
+        // For some reason, "StoredValue::update_value" crashes when in tries to exclusively lock the "RwLock".
+        // Because of that, I used RwLock in self.abort_handlers.
+        // Report to Leptos.
+        self.abort_handlers.update(move |abort_handlers| {
             abort_handlers.push(abort_handle);
         });
 
@@ -256,7 +259,7 @@ impl GameState {
     }
 
     fn abort_all_tasks(&self) {
-        self.abort_handlers.update_value(|abort_handlers| {
+        self.abort_handlers.update(|abort_handlers| {
             for handle in abort_handlers.drain(..) {
                 handle.abort();
             }
