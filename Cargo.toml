@@ -2,22 +2,28 @@
 name = "rustopoly"
 version = "0.1.0"
 edition = "2021"
+rust-version = "1.84"
+
+[workspace]
+members = ["server", "shared"]
 
 [dependencies]
 derive_more = { version = "1.0.0", features = ["full"] }
-futures = "0.3.30"
+futures = { workspace = true }
 gloo-timers = { version = "0.3.0", features = ["futures"] }
 js-sys = "0.3.69"
 leptos = { version = "0.7.0-beta", features = ["csr", "nightly"] }
 leptos_router = { version = "0.7.0-beta", features = ["nightly"] }
-serde = "1.0.204"
+serde = { workspace = true }
+serde_json = { workspace = true }
 serde-wasm-bindgen = "0.6.5"
-snafu = "0.8.4"
+snafu = { workspace = true }
 sourcemap = "9.0.0"
 tailwind-merge = { version = "0.1.0", path = "../tailwind-merge" }
-tracing = "0.1.40"
-tracing-error = "0.2.0"
-tracing-subscriber = "0.3.18"
+tarpc = { workspace = true }
+tracing = { workspace = true }
+tracing-error = { workspace = true }
+tracing-subscriber = { workspace = true }
 tracing-wasm = "0.2.1"
 wasm-bindgen = "0.2.92"
 wasm-bindgen-futures = "0.4.42"
@@ -27,3 +33,15 @@ web-sys = { version = "0.3.69", features = [
   "Node",
   "HtmlElement",
 ] }
+
+[workspace.dependencies]
+derive_more = { version = "1.0.0", features = ["full"] }
+futures = "0.3.31"
+serde = "1.0.214"
+serde_json = "1.0.132"
+snafu = "0.8.5"
+tracing = "0.1.40"
+tracing-error = "0.2.0"
+tracing-subscriber = "0.3.18"
+tarpc = { version = "0.35.0", features = ["full"] }
+tokio = { version = "1.41.1", features = ["full"] }
