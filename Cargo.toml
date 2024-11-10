@@ -45,3 +45,5 @@ tracing-error = "0.2.0"
 tracing-subscriber = "0.3.18"
 tarpc = { version = "0.35.0", features = ["full"] }
 tokio = { version = "1.41.1", features = ["full"] }
+tokio-serde = "0.9.0"
+tokio-util = "0.7.12"

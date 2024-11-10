@@ -1,5 +1,6 @@
 use futures::{io, Sink, SinkExt, Stream, StreamExt, TryFutureExt, TryStreamExt};
 use tarpc::transport::channel::UnboundedChannel;
+use tokio::task::spawn_local;
 
 use std::error::Error;
 
@@ -24,11 +25,11 @@ pub fn spawn_two_way<Req1, Resp1, Req2, Resp2, T>(
 where
     T: Stream<Item = io::Result<TwoWayMessage<Req1, Resp2>>>,
     T: Sink<TwoWayMessage<Req2, Resp1>, Error = io::Error>,
-    T: Unpin + Send + 'static,
-    Req1: Send + 'static,
-    Resp1: Send + 'static,
-    Req2: Send + 'static,
-    Resp2: Send + 'static,
+    T: 'static,
+    Req1: 'static,
+    Resp1: 'static,
+    Req2: 'static,
+    Resp2: 'static,
 {
     let (server, server_) = tarpc::transport::channel::unbounded();
     let (client, client_) = tarpc::transport::channel::unbounded();
@@ -38,7 +39,7 @@ where
 
     // Task for inbound message handling.
     // TODO: Replace `tokio` with something platform agnostic.
-    tokio::spawn(async move {
+    spawn_local(async move {
         let e: Result<(), Box<dyn Error>> = async move {
             while let Some(msg) = transport_stream.next().await {
                 match msg? {
@@ -56,7 +57,7 @@ where
     });
 
     // Task for outbound message handling.
-    tokio::spawn(
+    spawn_local(
         futures::stream::select(
             server_stream.map_ok(|resp| TwoWayMessage::Response(resp)),
             client_stream.map_ok(|req| TwoWayMessage::ClientMessage(req)),

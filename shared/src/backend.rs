@@ -12,6 +12,7 @@ mod private {
 
 pub use private::{Backend, BackendRequest, BackendResponse, ServeBackend};
 
+// TODO: Move to the ui.
 #[derive(Debug, Clone)]
 pub struct BackendClient {
     client: private::BackendClient,
