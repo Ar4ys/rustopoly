@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+isolog = { workspace = true }
 any_spawner = { workspace = true }
 futures = { workspace = true }
 tarpc = { workspace = true }

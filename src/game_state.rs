@@ -231,7 +231,7 @@ impl GameState {
             self.abort_all_tasks();
         }
 
-        if crate::dbg!(self.current_player.get_untracked() == *player) {
+        if isolog::dbg!(self.current_player.get_untracked() == *player) {
             self.finish_turn();
         }
     }
@@ -242,7 +242,7 @@ impl GameState {
         // TODO: "StoredValue::is_disposed" has logical error: it returns true if arena contains the node,
         // instead of otherwise - returning true if arena DOESN'T contain the node.
         // Report to Leptos.
-        // crate::println!(
+        // isolog::println!(
         //     "Inside spawn_local_abortable. is_disposed: {}",
         //     self.abort_handlers.is_disposed()
         // );

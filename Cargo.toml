@@ -5,10 +5,11 @@ edition = "2021"
 rust-version = "1.84"
 
 [workspace]
-members = ["server", "shared"]
+members = ["isolog", "server", "shared"]
 
 [dependencies]
-shared = { path = "./shared" }
+shared = { workspace = true }
+isolog = { workspace = true }
 any_spawner = { workspace = true, features = ["wasm-bindgen"] }
 derive_more = { version = "1.0.0", features = ["full"] }
 futures = { workspace = true }
@@ -29,9 +30,9 @@ tracing = { workspace = true }
 tracing-error = { workspace = true }
 tracing-subscriber = { workspace = true }
 tracing-wasm = "0.2.1"
-wasm-bindgen = "0.2.92"
-wasm-bindgen-futures = "0.4.42"
-web-sys = { version = "0.3.69", features = [
+wasm-bindgen = { workspace = true }
+wasm-bindgen-futures = { workspace = true }
+web-sys = { workspace = true, features = [
   "DomRect",
   "Element",
   "Node",
@@ -40,6 +41,8 @@ web-sys = { version = "0.3.69", features = [
 ws_stream_wasm = { version = "0.7.4", features = ["tokio_io"] }
 
 [workspace.dependencies]
+shared = { path = "./shared" }
+isolog = { path = "./isolog" }
 any_spawner = { version = "0.1.1" }
 derive_more = { version = "1.0.0", features = ["full"] }
 futures = "0.3.31"
@@ -53,3 +56,6 @@ tarpc = { version = "0.35.0", features = ["full"] }
 tokio = { version = "1.41.1", features = ["full"] }
 tokio-serde = "0.9.0"
 tokio-util = "0.7.12"
+wasm-bindgen = "0.2.95"
+wasm-bindgen-futures = "0.4.45"
+web-sys = "0.3.72"

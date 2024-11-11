@@ -5,7 +5,7 @@ edition = "2021"
 
 
 [dependencies]
-shared = { path = "../shared" }
+shared = { workspace = true }
 any_spawner = { workspace = true, features = ["tokio"] }
 tokio = { workspace = true }
 tokio-serde = { workspace = true }

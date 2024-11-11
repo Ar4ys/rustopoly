@@ -9,6 +9,7 @@ pub struct BackendServer {
 impl Backend for BackendServer {
     async fn authenticate(self, ctx: context::Context, name: String) {
         println!("Authenticate: {}", name);
+        // TODO: Do not unwrap here - client can disconnect mid request...
         self.player_client.event(ctx).await.unwrap();
     }
 }
