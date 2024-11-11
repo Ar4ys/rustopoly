@@ -37,7 +37,7 @@ web-sys = { version = "0.3.69", features = [
   "Node",
   "HtmlElement",
 ] }
-ws_stream_wasm = "0.7.4"
+ws_stream_wasm = { version = "0.7.4", features = ["tokio_io"] }
 
 [workspace.dependencies]
 any_spawner = { version = "0.1.1" }
