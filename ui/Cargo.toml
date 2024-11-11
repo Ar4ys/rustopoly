@@ -1,0 +1,38 @@
+[package]
+name = "rustopoly"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.84"
+
+[dependencies]
+shared = { workspace = true }
+isolog = { workspace = true }
+any_spawner = { workspace = true, features = ["wasm-bindgen"] }
+derive_more = { version = "1.0.0", features = ["full"] }
+futures = { workspace = true }
+gloo-timers = { version = "0.3.0", features = ["futures"] }
+js-sys = "0.3.69"
+leptos = { version = "0.7.0-beta", features = ["csr", "nightly"] }
+leptos_router = { version = "0.7.0-beta", features = ["nightly"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde-wasm-bindgen = "0.6.5"
+snafu = { workspace = true }
+sourcemap = "9.0.0"
+tailwind-merge = { workspace = true }
+tarpc = { workspace = true }
+tokio-serde = { workspace = true }
+tokio-util = { workspace = true }
+tracing = { workspace = true }
+tracing-error = { workspace = true }
+tracing-subscriber = { workspace = true }
+tracing-wasm = "0.2.1"
+wasm-bindgen = { workspace = true }
+wasm-bindgen-futures = { workspace = true }
+web-sys = { workspace = true, features = [
+  "DomRect",
+  "Element",
+  "Node",
+  "HtmlElement",
+] }
+ws_stream_wasm = { version = "0.7.4", features = ["tokio_io"] }

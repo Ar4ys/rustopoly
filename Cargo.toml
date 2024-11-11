@@ -1,46 +1,9 @@
-[package]
-name = "rustopoly"
-version = "0.1.0"
-edition = "2021"
-rust-version = "1.84"
-
 [workspace]
-members = ["isolog", "server", "shared"]
-
-[dependencies]
-shared = { workspace = true }
-isolog = { workspace = true }
-any_spawner = { workspace = true, features = ["wasm-bindgen"] }
-derive_more = { version = "1.0.0", features = ["full"] }
-futures = { workspace = true }
-gloo-timers = { version = "0.3.0", features = ["futures"] }
-js-sys = "0.3.69"
-leptos = { version = "0.7.0-beta", features = ["csr", "nightly"] }
-leptos_router = { version = "0.7.0-beta", features = ["nightly"] }
-serde = { workspace = true }
-serde_json = { workspace = true }
-serde-wasm-bindgen = "0.6.5"
-snafu = { workspace = true }
-sourcemap = "9.0.0"
-tailwind-merge = { version = "0.1.0", path = "../tailwind-merge" }
-tarpc = { workspace = true }
-tokio-serde = { workspace = true }
-tokio-util = { workspace = true }
-tracing = { workspace = true }
-tracing-error = { workspace = true }
-tracing-subscriber = { workspace = true }
-tracing-wasm = "0.2.1"
-wasm-bindgen = { workspace = true }
-wasm-bindgen-futures = { workspace = true }
-web-sys = { workspace = true, features = [
-  "DomRect",
-  "Element",
-  "Node",
-  "HtmlElement",
-] }
-ws_stream_wasm = { version = "0.7.4", features = ["tokio_io"] }
+members = ["isolog", "ui", "server", "shared"]
+resolver = "2"
 
 [workspace.dependencies]
+tailwind-merge = { path = "../tailwind-merge" }
 shared = { path = "./shared" }
 isolog = { path = "./isolog" }
 any_spawner = { version = "0.1.1" }
@@ -49,13 +12,13 @@ futures = "0.3.31"
 serde = "1.0.214"
 serde_json = "1.0.132"
 snafu = "0.8.5"
-tracing = "0.1.40"
-tracing-error = "0.2.0"
-tracing-subscriber = "0.3.18"
 tarpc = { version = "0.35.0", features = ["full"] }
 tokio = { version = "1.41.1", features = ["full"] }
 tokio-serde = "0.9.0"
 tokio-util = "0.7.12"
+tracing = "0.1.40"
+tracing-error = "0.2.0"
+tracing-subscriber = "0.3.18"
 wasm-bindgen = "0.2.95"
 wasm-bindgen-futures = "0.4.45"
 web-sys = "0.3.72"
