@@ -4,9 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+any_spawner = { workspace = true }
 futures = { workspace = true }
-# TODO: Remove tokio from shared dependencies
-tokio = { workspace = true }
 tarpc = { workspace = true }
 tracing = { workspace = true }
 serde = { workspace = true }

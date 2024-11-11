@@ -34,6 +34,7 @@ checksum = "9747eb01aed7603aba23f7c869d5d7e5d37aab9c3501aced42d8fdb786f1f6e3"
 dependencies = [
  "futures",
  "thiserror",
+ "tokio",
  "wasm-bindgen-futures",
 ]
 
@@ -1508,6 +1509,7 @@ dependencies = [
 name = "rustopoly"
 version = "0.1.0"
 dependencies = [
+ "any_spawner",
  "derive_more",
  "futures",
  "gloo-timers",
@@ -1652,6 +1654,7 @@ dependencies = [
 name = "server"
 version = "0.1.0"
 dependencies = [
+ "any_spawner",
  "async-stream",
  "async-tungstenite",
  "futures",
@@ -1747,10 +1750,10 @@ dependencies = [
 name = "shared"
 version = "0.1.0"
 dependencies = [
+ "any_spawner",
  "futures",
  "serde",
  "tarpc",
- "tokio",
  "tracing",
 ]
 

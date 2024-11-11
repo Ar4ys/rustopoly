@@ -9,6 +9,7 @@ members = ["server", "shared"]
 
 [dependencies]
 shared = { path = "./shared" }
+any_spawner = { workspace = true, features = ["wasm-bindgen"] }
 derive_more = { version = "1.0.0", features = ["full"] }
 futures = { workspace = true }
 gloo-timers = { version = "0.3.0", features = ["futures"] }
@@ -39,6 +40,7 @@ web-sys = { version = "0.3.69", features = [
 ws_stream_wasm = "0.7.4"
 
 [workspace.dependencies]
+any_spawner = { version = "0.1.1" }
 derive_more = { version = "1.0.0", features = ["full"] }
 futures = "0.3.31"
 serde = "1.0.214"

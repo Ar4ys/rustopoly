@@ -1,5 +1,6 @@
 use std::{ops::Deref, sync::Arc};
 
+use any_spawner::Executor;
 use futures::{stream::AbortHandle, TryFutureExt};
 use tarpc::{client, ClientMessage, Response, Transport};
 
@@ -35,8 +36,7 @@ impl BackendClient {
     ) -> Self {
         let client = private::BackendClient::new(client::Config::default(), transport);
 
-        // TODO: Replace tokio with something agnostic
-        tokio::spawn(
+        Executor::spawn(
             client
                 .dispatch
                 .unwrap_or_else(|e| tracing::error!("Connection broken: {}", e)),

@@ -1,6 +1,6 @@
+use any_spawner::Executor;
 use futures::{io, Sink, SinkExt, Stream, StreamExt, TryFutureExt, TryStreamExt};
 use tarpc::transport::channel::UnboundedChannel;
-use tokio::task::spawn_local;
 
 use std::error::Error;
 
@@ -38,8 +38,7 @@ where
     let (transport_sink, mut transport_stream) = transport.split();
 
     // Task for inbound message handling.
-    // TODO: Replace `tokio` with something platform agnostic.
-    spawn_local(async move {
+    Executor::spawn_local(async move {
         let e: Result<(), Box<dyn Error>> = async move {
             while let Some(msg) = transport_stream.next().await {
                 match msg? {
@@ -57,7 +56,7 @@ where
     });
 
     // Task for outbound message handling.
-    spawn_local(
+    Executor::spawn_local(
         futures::stream::select(
             server_stream.map_ok(|resp| TwoWayMessage::Response(resp)),
             client_stream.map_ok(|req| TwoWayMessage::ClientMessage(req)),

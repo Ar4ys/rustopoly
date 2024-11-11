@@ -7,6 +7,7 @@ use std::{
     net::{Ipv4Addr, SocketAddrV4},
 };
 
+use any_spawner::Executor;
 use futures::StreamExt;
 use shared::{backend::Backend, frontend::FrontendClient, spawn_two_way::spawn_two_way};
 use tarpc::{client, server::Channel};
@@ -18,8 +19,10 @@ mod ws;
 
 static DEFAULT_SERVER_PORT: &str = "3600";
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 pub async fn main() {
+    Executor::init_tokio().unwrap();
+
     let server_address = SocketAddrV4::new(
         Ipv4Addr::LOCALHOST,
         env::var("SERVER_PORT")

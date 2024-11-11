@@ -1,3 +1,4 @@
+use any_spawner::Executor;
 use leptos::prelude::*;
 use leptos_router::components::Router;
 use tracing_error::ErrorLayer;
@@ -20,6 +21,7 @@ mod utils;
 
 fn main() {
     setup_error_handlers();
+    Executor::init_wasm_bindgen().unwrap();
 
     mount_to_body(|| {
         view! {
