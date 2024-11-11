@@ -1,7 +1,7 @@
 use std::{ops::Deref, sync::Arc};
 
+use futures::{stream::AbortHandle, TryFutureExt};
 use tarpc::{client, ClientMessage, Response, Transport};
-use tokio::task::JoinHandle;
 
 mod private {
     #[tarpc::service]
@@ -12,11 +12,10 @@ mod private {
 
 pub use private::{Backend, BackendRequest, BackendResponse, ServeBackend};
 
-// TODO: Move to the ui.
 #[derive(Debug, Clone)]
 pub struct BackendClient {
     client: private::BackendClient,
-    server_handle: Arc<JoinHandle<()>>,
+    _server_handle: Arc<FrontendServerHandle>,
 }
 
 impl Deref for BackendClient {
@@ -27,22 +26,34 @@ impl Deref for BackendClient {
     }
 }
 
-impl Drop for BackendClient {
-    fn drop(&mut self) {
-        self.server_handle.abort();
-    }
-}
-
 impl BackendClient {
     pub fn new(
         transport: impl Transport<ClientMessage<BackendRequest>, Response<BackendResponse>>
             + Send
             + 'static,
-        server_handle: JoinHandle<()>,
+        server_handle: AbortHandle,
     ) -> Self {
+        let client = private::BackendClient::new(client::Config::default(), transport);
+
+        // TODO: Replace tokio with something agnostic
+        tokio::spawn(
+            client
+                .dispatch
+                .unwrap_or_else(|e| tracing::error!("Connection broken: {}", e)),
+        );
+
         Self {
-            client: private::BackendClient::new(client::Config::default(), transport).spawn(),
-            server_handle: Arc::new(server_handle),
+            client: client.client,
+            _server_handle: Arc::new(FrontendServerHandle(server_handle)),
         }
+    }
+}
+
+#[derive(Debug, Clone)]
+struct FrontendServerHandle(AbortHandle);
+
+impl Drop for FrontendServerHandle {
+    fn drop(&mut self) {
+        self.0.abort();
     }
 }

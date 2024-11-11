@@ -8,6 +8,7 @@ rust-version = "1.84"
 members = ["server", "shared"]
 
 [dependencies]
+shared = { path = "./shared" }
 derive_more = { version = "1.0.0", features = ["full"] }
 futures = { workspace = true }
 gloo-timers = { version = "0.3.0", features = ["futures"] }
@@ -21,6 +22,8 @@ snafu = { workspace = true }
 sourcemap = "9.0.0"
 tailwind-merge = { version = "0.1.0", path = "../tailwind-merge" }
 tarpc = { workspace = true }
+tokio-serde = { workspace = true }
+tokio-util = { workspace = true }
 tracing = { workspace = true }
 tracing-error = { workspace = true }
 tracing-subscriber = { workspace = true }
@@ -33,6 +36,7 @@ web-sys = { version = "0.3.69", features = [
   "Node",
   "HtmlElement",
 ] }
+ws_stream_wasm = "0.7.4"
 
 [workspace.dependencies]
 derive_more = { version = "1.0.0", features = ["full"] }

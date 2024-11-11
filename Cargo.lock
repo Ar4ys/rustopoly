@@ -1517,10 +1517,13 @@ dependencies = [
  "serde",
  "serde-wasm-bindgen",
  "serde_json",
+ "shared",
  "snafu",
  "sourcemap",
  "tailwind-merge",
  "tarpc",
+ "tokio-serde",
+ "tokio-util",
  "tracing",
  "tracing-error",
  "tracing-subscriber",
@@ -1528,6 +1531,7 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
+ "ws_stream_wasm",
 ]
 
 [[package]]
@@ -1747,6 +1751,7 @@ dependencies = [
  "serde",
  "tarpc",
  "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -2572,6 +2577,25 @@ dependencies = [
  "tokio",
  "tracing",
  "tungstenite",
+]
+
+[[package]]
+name = "ws_stream_wasm"
+version = "0.7.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7999f5f4217fe3818726b66257a4475f71e74ffd190776ad053fa159e50737f5"
+dependencies = [
+ "async_io_stream",
+ "futures",
+ "js-sys",
+ "log",
+ "pharos",
+ "rustc_version 0.4.1",
+ "send_wrapper",
+ "thiserror",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
 ]
 
 [[package]]

@@ -15,6 +15,7 @@ mod game_state;
 mod hooks;
 mod pages;
 mod player;
+mod server;
 mod utils;
 
 fn main() {
