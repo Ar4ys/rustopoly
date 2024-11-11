@@ -99,7 +99,7 @@ pub fn GamePage() -> impl IntoView {
                                     <Dice
                                         side=a
                                         animated=true
-                                        on_animation_end=Callback::new(move |_| {
+                                        on_animation_end=move || {
                                             set_timeout(
                                                 move || {
                                                     is_dice_shown.set(false);
@@ -107,7 +107,7 @@ pub fn GamePage() -> impl IntoView {
                                                 },
                                                 Duration::from_millis(200),
                                             );
-                                        })
+                                        }
                                     />
                                     <Dice side=b animated=true />
                                 </div>

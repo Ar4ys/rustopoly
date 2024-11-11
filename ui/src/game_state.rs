@@ -4,7 +4,7 @@ use futures::{
     stream::{AbortHandle, Abortable},
     FutureExt,
 };
-use leptos::{prelude::*, spawn::spawn_local};
+use leptos::{prelude::*, task::spawn_local};
 
 use crate::{
     cell::{Cell, Property, PropertyGroup, CELLS_COUNT},

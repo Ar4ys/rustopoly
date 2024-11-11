@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use derive_more::derive::Debug;
 use futures::{channel::mpsc, SinkExt, StreamExt};
-use leptos::{either::EitherOf3, prelude::*, spawn::spawn_local};
+use leptos::{either::EitherOf3, prelude::*, task::spawn_local};
 use tailwind_merge::tw;
 
 use crate::game_state::GameState;
@@ -33,7 +33,7 @@ pub fn InGameModal() -> impl IntoView {
                             <InGameModalView
                                 text
                                 left_button_text=button_text
-                                on_left_button_click=Callback::new(move |_| on_click())
+                                on_left_button_click=move || on_click()
                             />
                         },
                     )
@@ -52,9 +52,9 @@ pub fn InGameModal() -> impl IntoView {
                             <InGameModalView
                                 text
                                 left_button_text=ok_button_text
-                                on_left_button_click=Callback::new(move |_| on_ok_click())
+                                on_left_button_click=move || on_ok_click()
                                 right_button_text=cancel_button_text
-                                on_right_button_click=Callback::new(move |_| on_cancel_click())
+                                on_right_button_click=move || on_cancel_click()
                             />
                         },
                     )
@@ -75,7 +75,10 @@ pub fn InGameModalView(
     view! {
         <>
             <p>{text}</p>
-            <button class="p-2 mt-3 rounded border-2" on:click=move |_| on_left_button_click(())>
+            <button
+                class="p-2 mt-3 rounded border-2"
+                on:click=move |_| on_left_button_click.run(())
+            >
                 {left_button_text}
             </button>
             {move || {
@@ -84,7 +87,7 @@ pub fn InGameModalView(
                         view! {
                             <button
                                 class="p-2 ml-3 rounded border-2"
-                                on:click=move |_| on_right_button_click(())
+                                on:click=move |_| on_right_button_click.run(())
                             >
                                 {right_button_text.clone()}
                             </button>

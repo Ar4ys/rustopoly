@@ -11,9 +11,10 @@ any_spawner = { workspace = true, features = ["wasm-bindgen"] }
 derive_more = { version = "1.0.0", features = ["full"] }
 futures = { workspace = true }
 gloo-timers = { version = "0.3.0", features = ["futures"] }
+getrandom = { version = "0.2", features = ["js"] }
 js-sys = "0.3.69"
-leptos = { version = "0.7.0-beta", features = ["csr", "nightly"] }
-leptos_router = { version = "0.7.0-beta", features = ["nightly"] }
+leptos = { version = "0.7.0-rc1", features = ["csr", "nightly"] }
+leptos_router = { version = "0.7.0-rc1", features = ["nightly"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 serde-wasm-bindgen = "0.6.5"

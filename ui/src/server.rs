@@ -4,7 +4,7 @@ use futures::{
     stream::{AbortHandle, Abortable},
     FutureExt, StreamExt,
 };
-use leptos::spawn::spawn_local;
+use leptos::task::spawn_local;
 use shared::{backend::BackendClient, frontend::Frontend, spawn_two_way::spawn_two_way};
 use tarpc::{context, server::Channel};
 

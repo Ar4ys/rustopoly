@@ -7,7 +7,7 @@ edition = "2021"
 [dependencies]
 shared = { workspace = true }
 any_spawner = { workspace = true, features = ["tokio"] }
-tokio = { workspace = true }
+tokio = { workspace = true, features = ["full"] }
 tokio-serde = { workspace = true }
 tokio-util = { workspace = true }
 tarpc = { workspace = true }

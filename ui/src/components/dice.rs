@@ -6,21 +6,19 @@ use tailwind_merge::tw;
 
 use crate::utils::callable_option::CallableOption;
 
-type Rotation<'a> = (&'a str, &'a str);
-
-const SIDE: [(Rotation, Rotation); 6] = [
+const SIDE: [&str; 6] = [
     /*  1  */
-    (("--rotateY-deg", "0deg"), ("--rotateX-deg", "0deg")),
+    "--rotateY-deg: 0deg; --rotateX-deg: 0deg",
     /*  2  */
-    (("--rotateY-deg", "270deg"), ("--rotateX-deg", "0deg")),
+    "--rotateY-deg: 270deg; --rotateX-deg: 0deg",
     /*  3  */
-    (("--rotateY-deg", "0deg"), ("--rotateX-deg", "90deg")),
+    "--rotateY-deg: 0deg; --rotateX-deg: 90deg",
     /*  4  */
-    (("--rotateY-deg", "0deg"), ("--rotateX-deg", "270deg")),
+    "--rotateY-deg: 0deg; --rotateX-deg: 270deg",
     /*  5  */
-    (("--rotateY-deg", "90deg"), ("--rotateX-deg", "0deg")),
+    "--rotateY-deg: 90deg; --rotateX-deg: 0deg",
     /*  6  */
-    (("--rotateY-deg", "0deg"), ("--rotateX-deg", "180deg")),
+    "--rotateY-deg: 0deg; --rotateX-deg: 180deg",
 ];
 
 /// Non-reactive component.
@@ -40,11 +38,7 @@ pub fn Dice(
     );
 
     view! {
-        <div
-            class=tw!("w-40 aspect-square [perspective:1000px]", class)
-            style=SIDE[side - 1].0
-            style=SIDE[side - 1].1
-        >
+        <div class=tw!("w-40 aspect-square [perspective:1000px]", class) style=SIDE[side - 1]>
 
             // We don't want to trigger callback on animation end of all 6 faces - only one
             {(1..=6)
@@ -64,7 +58,7 @@ fn dice_face(face: usize, animated: bool, on_animation_end: Option<Callback<()>>
                 if animated { "animate-[0.7s_ease-in-out_forwards]" } else { "animate-[0s_forwards]" }
             )
             on:animationend=move |_| {
-                on_animation_end.call(());
+                on_animation_end.run(());
             }
         >
             <div
